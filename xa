@@ -448,6 +448,30 @@ local C = {
     SIDE_SMOOTH_ENABLE = true,
     SIDE_SMOOTH_MAX_ANGLE = 0.4,
     SIDE_SMOOTH_MEMORY = 8,
+
+    JUMP_REACT_ENABLE = true,
+    JUMP_REACT_GROUND_LOCK = true,
+    JUMP_REACT_FLICK_SPEED = 3.5,
+    JUMP_REACT_FLICK_DURATION = 0.08,
+    JUMP_REACT_COOLDOWN = 0.25,
+    JUMP_REACT_MIN_JUMP_VEL = 4.0,
+
+    THINK_MODE_ENABLE = true,
+    THINK_MODE_PAUSE_MIN = 0.05,
+    THINK_MODE_PAUSE_MAX = 0.15,
+    THINK_MODE_CHANCE = 0.15,
+
+    CURVE_MOVEMENT_ENABLE = true,
+    CURVE_MOVEMENT_CURVE = 2.5,
+    CURVE_MOVEMENT_SMOOTH = 0.15,
+
+    TARGET_SMOOTH_ENABLE = true,
+    TARGET_SMOOTH_ALPHA = 0.12,
+    TARGET_SMOOTH_MEMORY = 8,
+
+    TARGET_SWITCH_SMOOTH_ENABLE = true,
+    TARGET_SWITCH_SMOOTH_ALPHA = 0.08,
+    TARGET_SWITCH_SMOOTH_MEMORY = 12,
 }
 
 local st = {
@@ -649,6 +673,21 @@ local st = {
 
     sideSmoothMemory = {},
     sideSmoothIndex = 0,
+
+    jumpReactTimer = 0,
+    jumpReactActive = false,
+    jumpReactCooldown = 0,
+    groundLockY = nil,
+
+    thinkModeTimer = 0,
+    thinkModeActive = false,
+
+    curveMovementX = 0,
+    curveMovementY = 0,
+    targetSmoothMemory = {},
+    targetSmoothIndex = 0,
+    targetSwitchSmoothMemory = {},
+    targetSwitchSmoothIndex = 0,
 }
 
 local mv = {
@@ -1865,6 +1904,21 @@ local function resetOnNew()
     st.sideSmoothMemory = {}
     st.sideSmoothIndex = 0
 
+    st.jumpReactTimer = 0
+    st.jumpReactActive = false
+    st.jumpReactCooldown = 0
+    st.groundLockY = nil
+
+    st.thinkModeTimer = 0
+    st.thinkModeActive = false
+
+    st.curveMovementX = 0
+    st.curveMovementY = 0
+    st.targetSmoothMemory = {}
+    st.targetSmoothIndex = 0
+    st.targetSwitchSmoothMemory = {}
+    st.targetSwitchSmoothIndex = 0
+
     startHumanReaction(st.isJudgeTarget, false, nil)
 end
 
@@ -2530,6 +2584,36 @@ local connR = RunService.RenderStepped:Connect(function(dt)
         end
     end
 
+    if C.JUMP_REACT_ENABLE then
+        st.jumpReactCooldown = math.max(st.jumpReactCooldown - dt, 0)
+        if vm > C.JUMP_REACT_MIN_JUMP_VEL and not st.jumpReactActive and st.jumpReactCooldown <= 0 then
+            st.jumpReactActive = true
+            st.jumpReactTimer = 0
+            st.jumpReactCooldown = C.JUMP_REACT_COOLDOWN
+            st.groundLockY = st.groundLockY or st.smoothTargetY
+        end
+        if st.jumpReactActive then
+            st.jumpReactTimer = st.jumpReactTimer + dt
+            if st.jumpReactTimer >= C.JUMP_REACT_FLICK_DURATION then
+                st.jumpReactActive = false
+                st.groundLockY = nil
+            end
+        end
+    end
+
+    if C.THINK_MODE_ENABLE then
+        st.thinkModeTimer = st.thinkModeTimer - dt
+        if st.thinkModeTimer <= 0 then
+            if math.random() < C.THINK_MODE_CHANCE then
+                st.thinkModeActive = true
+                st.thinkModeTimer = rRange(C.THINK_MODE_PAUSE_MIN, C.THINK_MODE_PAUSE_MAX)
+            else
+                st.thinkModeActive = false
+                st.thinkModeTimer = rRange(0.1, 0.3)
+            end
+        end
+    end
+
     local lockAgeFlick = st.lockTime and (tick() - st.lockTime) or 0
     local targetDistNow = hsp and (hsp - cursor).Magnitude or 9999
 
@@ -3003,6 +3087,10 @@ local connR = RunService.RenderStepped:Connect(function(dt)
         activeMult = activeMult * beautyFactor
     end
 
+    if C.THINK_MODE_ENABLE and st.thinkModeActive then
+        activeMult = activeMult * 0.3
+    end
+
     local flickMult = 1
     local flickResponse = 1
 
@@ -3152,8 +3240,57 @@ local connR = RunService.RenderStepped:Connect(function(dt)
 
     local respT = math.min(response * 60 * dt, 1)
 
-    mv.outX = mv.outX + (desiredX - mv.outX) * respT
-    mv.outY = mv.outY + (desiredY - mv.outY) * respT
+    if C.CURVE_MOVEMENT_ENABLE then
+        local curveT = clamp(respT, 0, 1)
+        local curveFactor = curveT ^ C.CURVE_MOVEMENT_CURVE
+
+        local targetX = desiredX * curveFactor
+        local targetY = desiredY * curveFactor
+
+        mv.outX = mv.outX + (targetX - mv.outX) * math.min(C.CURVE_MOVEMENT_SMOOTH * 60 * dt, 1)
+        mv.outY = mv.outY + (targetY - mv.outY) * math.min(C.CURVE_MOVEMENT_SMOOTH * 60 * dt, 1)
+    else
+        mv.outX = mv.outX + (desiredX - mv.outX) * respT
+        mv.outY = mv.outY + (desiredY - mv.outY) * respT
+    end
+
+    if C.TARGET_SMOOTH_ENABLE then
+        table.insert(st.targetSmoothMemory, {x = mv.outX, y = mv.outY})
+        if #st.targetSmoothMemory > C.TARGET_SMOOTH_MEMORY then
+            table.remove(st.targetSmoothMemory, 1)
+        end
+
+        local smoothX = 0
+        local smoothY = 0
+        for _, m in ipairs(st.targetSmoothMemory) do
+            smoothX = smoothX + m.x
+            smoothY = smoothY + m.y
+        end
+        smoothX = smoothX / #st.targetSmoothMemory
+        smoothY = smoothY / #st.targetSmoothMemory
+
+        mv.outX = lerp(mv.outX, smoothX, C.TARGET_SMOOTH_ALPHA)
+        mv.outY = lerp(mv.outY, smoothY, C.TARGET_SMOOTH_ALPHA)
+    end
+
+    if C.TARGET_SWITCH_SMOOTH_ENABLE then
+        table.insert(st.targetSwitchSmoothMemory, {x = mv.outX, y = mv.outY})
+        if #st.targetSwitchSmoothMemory > C.TARGET_SWITCH_SMOOTH_MEMORY then
+            table.remove(st.targetSwitchSmoothMemory, 1)
+        end
+
+        local smoothX = 0
+        local smoothY = 0
+        for _, m in ipairs(st.targetSwitchSmoothMemory) do
+            smoothX = smoothX + m.x
+            smoothY = smoothY + m.y
+        end
+        smoothX = smoothX / #st.targetSwitchSmoothMemory
+        smoothY = smoothY / #st.targetSwitchSmoothMemory
+
+        mv.outX = lerp(mv.outX, smoothX, C.TARGET_SWITCH_SMOOTH_ALPHA)
+        mv.outY = lerp(mv.outY, smoothY, C.TARGET_SWITCH_SMOOTH_ALPHA)
+    end
 
     mv.noiseX = mv.noiseX + dt * C.HUMAN_NOISE_SPEED_X
     mv.noiseY = mv.noiseY + dt * C.HUMAN_NOISE_SPEED_Y
