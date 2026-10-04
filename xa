@@ -181,12 +181,12 @@ local C = {
 
   TAU_REACT = 0.08, TAU_LOST = 0.35,
 
-  SPRING_TAU = 0.042, SPRING_ZETA = 1.00, SPRING_OMEGA_SMOOTH = 0.10,
+  SPRING_TAU = 0.042, SPRING_ZETA = 1.00, SPRING_OMEGA_SMOOTH = 0.16,
   SPRING_OUTPUT_GAIN = 1.25, SPRING_VEL_SMOOTH_TAU = 0.016,
   SPRING_VEL_MAX_DELTA = 30000, ZETA_SMOOTH_TAU = 0.20, TOTAL_BOOST_CAP = 2.50,
 
-  TARGET_SPEED_ADAPT_ENABLE = true, TARGET_SPEED_BOOST_MIN = 5.0,
-  TARGET_SPEED_BOOST_MAX = 28.0, TARGET_SPEED_BOOST_AMT = 0.45,
+  TARGET_SPEED_ADAPT_ENABLE = true, TARGET_SPEED_BOOST_MIN = 3.0,
+  TARGET_SPEED_BOOST_MAX = 45.0, TARGET_SPEED_BOOST_AMT = 0.70,
   PROXIMITY_ADAPT_ENABLE = true, PROXIMITY_BOOST_RANGE = 35.0, PROXIMITY_BOOST_AMT = 0.55,
 
   SURFACE_PREDICT_ENABLE = true, SURFACE_PREDICT_MARGIN = 1.5,
@@ -247,8 +247,8 @@ local C = {
   PULSE_MAG_JITTER = 0.30, PULSE_CURVE_ASYM = 0.25,
   PULSE_DIR_WOBBLE = 0.14, PULSE_ATTACK_FRAC = 0.20,
 
-  REACT_DELAY_MIN = 0.100, REACT_DELAY_MAX = 0.160,
-  REACT_STILL_MIN = 0.070, REACT_STILL_MAX = 0.110,
+  REACT_DELAY_MIN = 0.045, REACT_DELAY_MAX = 0.090,
+  REACT_STILL_MIN = 0.030, REACT_STILL_MAX = 0.070,
   STILL_MICRO_SCALE = 0.03, STILL_VEL_THRESH = 3.0,
 
   MANUAL_CUT_START = 0.50, MANUAL_CUT_FULL = 0.95,
@@ -370,8 +370,8 @@ local C = {
 
   REACTION_RAMP_ENABLE = true,
 
-  ACQUIRE_ENVELOPE_ENABLE = true, ACQUIRE_ENVELOPE_TIME = 0.35,
-  ACQUIRE_ENVELOPE_CURVE = 1.40, ACQUIRE_ENVELOPE_MIN = 0.00, ACQUIRE_BLEND_TIME = 0.180,
+  ACQUIRE_ENVELOPE_ENABLE = true, ACQUIRE_ENVELOPE_TIME = 0.22,
+  ACQUIRE_ENVELOPE_CURVE = 1.90, ACQUIRE_ENVELOPE_MIN = 0.00, ACQUIRE_BLEND_TIME = 0.180,
 
   ACQUIRE_VEL_CAP_ENABLE = false, ACQUIRE_VEL_CAP_MIN = 40, ACQUIRE_VEL_CAP_MAX = 900,
 
@@ -460,7 +460,7 @@ local st = {
   gamePitch = 0, gameMag = 0, gameEffectActive = false,
   gameEffectTimer = 0, sensYaw = 0.10, sensPitch = 0.10,
   userSpeed = 0, userDirX = 0, userDirY = 0, gameSignalSmooth = 0,
-  hudVisible = false,
+  hudVisible = true,
 
   recoilPrevCamPitch = nil,
   recoilPrevCamYaw = nil,
@@ -2080,18 +2080,13 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   local reactRamp = 1.0
   if C.REACTION_RAMP_ENABLE and st.reactDelayCurrent > 0 then
     local t = clamp(st.lockAge / st.reactDelayCurrent, 0, 1)
-    if t < 0.15 then
-      reactRamp = 0
-    else
-      local tt = (t - 0.15) / 0.85
-      reactRamp = tt * tt * (3 - 2 * tt)
-    end
+    reactRamp = t * t * (3 - 2 * t)
   end
   st.acquireEnvT = st.acquireEnvT + dt
   local acqEnv = 1.0
   if C.ACQUIRE_ENVELOPE_ENABLE and C.ACQUIRE_ENVELOPE_TIME > 0 then
     local t = clamp(st.acquireEnvT / C.ACQUIRE_ENVELOPE_TIME, 0, 1)
-    local curved = t ^ C.ACQUIRE_ENVELOPE_CURVE
+    local curved = 1 - (1 - t) ^ C.ACQUIRE_ENVELOPE_CURVE
     acqEnv = C.ACQUIRE_ENVELOPE_MIN + (1 - C.ACQUIRE_ENVELOPE_MIN) * curved
   end
   local errorX = aimX - cursor.X
@@ -2330,7 +2325,14 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   zetaBase = zetaBase + zetaMod
   local zetaT = clamp(1 - eMag / C.CLOSE_ZETA_RANGE, 0, 1)
   zetaT = zetaT * zetaT * (3 - 2 * zetaT)
-  local zetaTarget = zetaBase + C.CLOSE_ZETA_BOOST * zetaT
+  local speedZetaBoost = 0
+  if C.TARGET_SPEED_ADAPT_ENABLE then
+    local tvZ = st.lastTargetVelMag or 0
+    local tz = clamp((tvZ - C.TARGET_SPEED_BOOST_MIN) / math.max(C.TARGET_SPEED_BOOST_MAX - C.TARGET_SPEED_BOOST_MIN, 1), 0, 1)
+    tz = tz * tz * (3 - 2 * tz)
+    speedZetaBoost = tz * 0.18
+  end
+  local zetaTarget = zetaBase + C.CLOSE_ZETA_BOOST * zetaT + speedZetaBoost
   st.zetaSmooth = expDecay(st.zetaSmooth, zetaTarget, C.ZETA_SMOOTH_TAU, dt)
   local c = 2 * om * st.zetaSmooth
   local vertOmegaMult = errorY < 0 and C.VERT_UP_OMEGA_MULT or C.VERT_DOWN_OMEGA_MULT
