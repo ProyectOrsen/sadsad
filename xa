@@ -460,7 +460,7 @@ local st = {
   gamePitch = 0, gameMag = 0, gameEffectActive = false,
   gameEffectTimer = 0, sensYaw = 0.10, sensPitch = 0.10,
   userSpeed = 0, userDirX = 0, userDirY = 0, gameSignalSmooth = 0,
-  hudVisible = true,
+  hudVisible = false,
 
   recoilPrevCamPitch = nil,
   recoilPrevCamYaw = nil,
