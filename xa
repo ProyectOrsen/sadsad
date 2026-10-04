@@ -145,6 +145,16 @@ local C = {
   TARGET_THREAT_ENABLE = true, TARGET_THREAT_ANGLE = 60.0, TARGET_THREAT_BONUS = 15.0,
   TARGET_HEALTH_ENABLE = true, TARGET_HEALTH_BONUS = 5.0, TARGET_DIST_WEIGHT = 1.0,
 
+  -- ===== NUEVO: retención agresiva del target =====
+  -- El target NUNCA se suelta por estar fuera de FOV. Solo se suelta si el
+  -- usuario jala el mouse FUERTE en dirección CONTRARIA al aim.
+  USER_ESCAPE_MIN_SPEED = 35.0,   -- velocidad mínima del mouse para considerar escape
+  USER_ESCAPE_DOT_THRESH = -0.30, -- dot < esto = jalando opuesto al aim
+  USER_ESCAPE_HOLD_TIME = 0.10,   -- tiempo mínimo jalando opuesto para soltar
+  USER_ESCAPE_RELEASE_THRESH = 0.40, -- intensidad mínima para empezar a contar
+
+  OVERSHOOT_MIN_ERR = 12.0,       -- no overshoot si eMag < esto
+
   AIM_POINT_MODE = "Dynamic",
   AIM_REGION_COUNT = 5, AIM_REGION_JITTER = 0.06,
   AIM_REGION_SWITCH = 4.0, AIM_REGION_SWITCH_J = 0.6, AIM_REGION_CURVE_BIAS = 0.5,
@@ -172,14 +182,13 @@ local C = {
   PRED_STILL_CUTOFF = true, PRED_STILL_VEL = 3.0,
   FLICK_CURVE_ENABLE = true, FLICK_CURVE_AMOUNT = 0.40,
 
-  STICKY_ENABLE = true, STICKY_OUT_OF_FOV_TIME = 0.60, STICKY_FAST_EXTRA = 0.80,
+  STICKY_ENABLE = true, STICKY_OUT_OF_FOV_TIME = 999.0, STICKY_FAST_EXTRA = 0.80,
   STICKY_FAST_VEL_MIN = 8.0, STICKY_FAST_VEL_MAX = 35.0,
-  STICKY_YANK_ENABLE = true, STICKY_YANK_PIXELS = 250.0,
+  STICKY_YANK_ENABLE = false, STICKY_YANK_PIXELS = 250.0,
   STICKY_YANK_TIME = 0.10, STICKY_YANK_DROP_TIME = 0.15,
 
   TAU_REACT = 0.06, TAU_LOST = 0.30,
 
-  -- Spring: rapido pero SUAVE, no rigido
   SPRING_TAU = 0.030, SPRING_ZETA = 1.00, SPRING_OMEGA_SMOOTH = 0.20,
   SPRING_OUTPUT_GAIN = 1.45, SPRING_VEL_SMOOTH_TAU = 0.014,
   SPRING_VEL_MAX_DELTA = 30000, ZETA_SMOOTH_TAU = 0.18, TOTAL_BOOST_CAP = 3.20,
@@ -188,7 +197,6 @@ local C = {
   TARGET_SPEED_BOOST_MAX = 55.0, TARGET_SPEED_BOOST_AMT = 1.20,
   PROXIMITY_ADAPT_ENABLE = true, PROXIMITY_BOOST_RANGE = 40.0, PROXIMITY_BOOST_AMT = 0.90,
 
-  -- Arrival damping muy suave, no frena de golpe
   ARRIVAL_DAMP_ENABLE = true, ARRIVAL_DAMP_RANGE = 5.0, ARRIVAL_DAMP_STR = 0.06,
   MICRO_ADJUST_ENABLE = true, MICRO_ADJUST_RANGE = 6.0,
   MICRO_ADJUST_GAIN_X = 0.10, MICRO_ADJUST_GAIN_Y = 0.08,
@@ -204,7 +212,6 @@ local C = {
   MICRO_PAUSE_HOLD_MIN = 0.030, MICRO_PAUSE_HOLD_MAX = 0.080,
   MICRO_PAUSE_CHANCE = 0.12, MICRO_PAUSE_SCALE = 0.45,
 
-  -- Close snap suave, NO rigido
   CLOSE_SNAP_ENABLE = true, CLOSE_SNAP_RANGE = 10.0,
   CLOSE_SNAP_K_MULT = 1.15, CLOSE_SNAP_OM_MULT = 1.10,
 
@@ -254,7 +261,6 @@ local C = {
   PULSE_MAG_JITTER = 0.30, PULSE_CURVE_ASYM = 0.25,
   PULSE_DIR_WOBBLE = 0.14, PULSE_ATTACK_FRAC = 0.20,
 
-  -- Reaccion rapida pero con transicion suave
   REACT_DELAY_MIN = 0.015, REACT_DELAY_MAX = 0.035,
   REACT_STILL_MIN = 0.010, REACT_STILL_MAX = 0.028,
   STILL_MICRO_SCALE = 0.03, STILL_VEL_THRESH = 3.0,
@@ -287,14 +293,12 @@ local C = {
   SACCADE_MAX_INTERVAL = 2.00, SACCADE_DECAY_TAU = 0.08, SACCADE_ACTIVE_RANGE = 45.0,
   SACCADE_CHANCE = 0.55, SACCADE_NEAR_SCALE = 10.0,
 
-  -- Prediccion rapida pero no instantanea (evita roboticos tirones)
   PRED_DECAY_TAU = 0.28, PRED_SAMPLE_MAX_JUMP = 14.0, PRED_SAMPLE_MAX_VEL = 90.0,
   PRED_INST_SPIKE_RATIO = 2.3, PRED_TP_RESET_TIME = 0.28,
   PRED_HIST_SAMPLE_MIN_DT = 0.004, PRED_VEL_EMA_TAU = 0.030,
 
   AIM_ANCHOR_HEIGHT = 0.3,
 
-  -- ANTI_BOUNCE muy debil, ya no parece que choca con algo
   ANTI_BOUNCE_ENABLE = true, ANTI_BOUNCE_RANGE = 12.0, ANTI_BOUNCE_DOT = 0.02,
   ANTI_BOUNCE_KILL = 0.005, ANTI_BOUNCE_CLOSE_RANGE = 4.0,
   ANTI_BOUNCE_CLOSE_KILL = 0.010, ANTI_BOUNCE_X_MULT = 0.5, ANTI_BOUNCE_Y_MULT = 0.5,
@@ -380,7 +384,6 @@ local C = {
 
   REACTION_RAMP_ENABLE = true,
 
-  -- Envelope con curva suave, no arranque tipo switch
   ACQUIRE_ENVELOPE_ENABLE = true, ACQUIRE_ENVELOPE_TIME = 0.090,
   ACQUIRE_ENVELOPE_CURVE = 1.60, ACQUIRE_ENVELOPE_MIN = 0.00, ACQUIRE_BLEND_TIME = 0.100,
 
@@ -513,6 +516,10 @@ local st = {
   fatigueT = math.random() * 100, fatigueLevel = 0,
   anticipateX = 0, anticipateY = 0,
   smoothErrorX = 0, smoothErrorY = 0,
+
+  -- NUEVO: escape intent
+  escapeIntent = 0,
+  escapeHoldTimer = 0,
 }
 
 local function clamp(v, lo, hi)
@@ -595,6 +602,49 @@ local function findPart(char, name)
   local p = char:FindFirstChild(name)
   if p and p:IsA("BasePart") then return p end
   return nil
+end
+
+-- ===== NUEVO: detecta si el usuario está jalando FUERTE en dirección contraria al aim =====
+-- Devuelve 0..1 (0 = no escape, 1 = escape fuerte)
+local function computeUserEscapeIntent()
+  local userSpd = st.mouseSpeedSmooth or 0
+  if userSpd < C.USER_ESCAPE_MIN_SPEED then return 0 end
+
+  local ux = st.mouseDeltaX or 0
+  local uy = st.mouseDeltaY or 0
+  local uMag = vlen(ux, uy)
+  if uMag < 1 then return 0 end
+  ux, uy = ux / uMag, uy / uMag
+
+  -- Dirección del aim: hacia dónde está jalando el aim (spring velocity)
+  local aimMag = vlen(st.springVsX or 0, st.springVsY or 0)
+  local ax, ay
+  if aimMag > 0.5 then
+    ax, ay = (st.springVsX or 0) / aimMag, (st.springVsY or 0) / aimMag
+  else
+    -- fallback: usar dirección de la pantalla hacia el punto de aim
+    if st.aimScreenInit and camera then
+      local vp = camera.ViewportSize
+      local dx = st.aimScreenX - (vp.X * 0.5 + C.CENTER_X)
+      local dy = st.aimScreenY - (vp.Y * 0.5 + C.CENTER_Y)
+      local dm = vlen(dx, dy)
+      if dm > 1 then
+        ax, ay = dx / dm, dy / dm
+      else
+        return 0
+      end
+    else
+      return 0
+    end
+  end
+
+  -- dot negativo = usuario jalando en dirección OPUESTA al aim
+  local dot = ux * ax + uy * ay
+  if dot > C.USER_ESCAPE_DOT_THRESH then return 0 end
+
+  -- intensidad: más opuesto y más rápido = más fuerte
+  local intensity = (-dot) * math.min(userSpd / C.USER_ESCAPE_MIN_SPEED, 2.0)
+  return clamp(intensity, 0, 1)
 end
 
 local function updateHitboxZone(dt)
@@ -1191,6 +1241,8 @@ local function acquireTarget(chosen, wasExisting, isNearSwitch, cursor)
   st.anticipateY = 0
   st.smoothErrorX = 0
   st.smoothErrorY = 0
+  st.escapeIntent = 0
+  st.escapeHoldTimer = 0
   rerollAll()
   if wasExisting and st.aimScreenInit then
     st.switchFromX = curX
@@ -1243,9 +1295,12 @@ local function dropTarget()
   st.aimDynamicY = nil
   st.prevErrorMag = nil
   st.overshootTimer = 0
+  st.escapeIntent = 0
+  st.escapeHoldTimer = 0
 end
 
 local function updateYankDetection(dt)
+  -- Desactivado por STICKY_YANK_ENABLE = false
   if not C.STICKY_YANK_ENABLE then return end
   if not st.target or not st.targetChar or not st.targetChar.Parent then return end
   local root = st.targetChar:FindFirstChild("HumanoidRootPart")
@@ -1321,34 +1376,46 @@ local function updateStickyTimers(dt)
   end
 end
 
+-- ===== NUEVO selectTarget: NUNCA suelta por estar fuera de FOV =====
+-- Solo suelta si el usuario tiene intención clara de escape (jala opuesto al aim)
 local function selectTarget(cursor, dt)
   local c = getCandidates(cursor, C.FOV, st.targetChar, dt)
+  local escapeIntent = computeUserEscapeIntent()
+  st.escapeIntent = escapeIntent
+
+  -- Verificar si target actual sigue vivo
+  local hasValid = st.target and st.targetChar and st.targetChar.Parent
+  if hasValid then
+    local hum = st.targetChar:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then hasValid = false end
+  end
+
   if #c == 0 then
-    if st.target and st.targetChar and st.targetChar.Parent then
-      if st.yankDetected then
-        st.yankTimer = st.yankTimer - dt
-        if st.yankTimer <= 0 then dropTarget(); return end
-      end
-      local sinceValid = tick() - (st.lastTargetValidTime or 0)
-      local graceTime = C.TARGET_GRACE_TIME
-      if C.STICKY_ENABLE then
-        local velMag = st.lastTargetVelMag or 0
-        local t = clamp((velMag - C.STICKY_FAST_VEL_MIN) / math.max(C.STICKY_FAST_VEL_MAX - C.STICKY_FAST_VEL_MIN, 1), 0, 1)
-        graceTime = C.STICKY_OUT_OF_FOV_TIME + C.STICKY_FAST_EXTRA * t
-      end
-      if sinceValid < graceTime then
-        st.lostFade = expDecay(st.lostFade, 1, 0.15, dt)
+    -- NO hay nadie en FOV. Mantener el target SIEMPRE.
+    if not hasValid then
+      if st.target then dropTarget() end
+      return
+    end
+
+    -- Solo soltar si el escape intent es MUY fuerte Y sostenido
+    if escapeIntent >= C.USER_ESCAPE_RELEASE_THRESH then
+      st.escapeHoldTimer = st.escapeHoldTimer + dt
+      if st.escapeHoldTimer >= C.USER_ESCAPE_HOLD_TIME then
+        dropTarget()
         return
       end
+    else
+      st.escapeHoldTimer = 0
     end
-    if st.target then
-      st.lostFade = expDecay(st.lostFade, 0, C.TAU_LOST, dt)
-      if st.lostFade < 0.02 then dropTarget() end
-    end
+
+    -- Mantener - no soltar por FOV
+    st.lostFade = expDecay(st.lostFade, 1, 0.15, dt)
     return
   end
+
   local bestCandidate = c[1]
   local bestIsCurrent = st.targetChar and bestCandidate.char == st.targetChar
+
   if bestIsCurrent then
     st.targetWorldD = bestCandidate.wd
     st.lostTimer = 0
@@ -1356,53 +1423,48 @@ local function selectTarget(cursor, dt)
     st.lastTargetVisibleTime = tick()
     st.lostFade = expDecay(st.lostFade, 1, 0.08, dt)
     st.stickyOutTimer = 0
+    st.escapeHoldTimer = 0
     return
   end
-  if st.yankDetected then
-    st.yankTimer = st.yankTimer - dt
-    if st.yankTimer <= 0 then
-      dropTarget()
-    else
-      if st.target and st.targetChar and st.targetChar.Parent then return end
-    end
-  end
-  local shouldSwitch = false
-  if not st.target or not st.targetChar or not st.targetChar.Parent then
-    shouldSwitch = true
-  else
-    local currentSd = nil
-    for _, cand in ipairs(c) do
-      if cand.char == st.targetChar then currentSd = cand.sd; break end
-    end
-    if not currentSd then
-      local sinceValid = tick() - (st.lastTargetValidTime or 0)
-      if sinceValid > C.TARGET_GRACE_TIME then shouldSwitch = true end
-    elseif bestCandidate.sd + C.TARGET_SWITCH_MARGIN < currentSd then
-      shouldSwitch = true
-    end
-  end
-  if shouldSwitch then
+
+  -- Hay candidato en FOV distinto al current. ¿Cambiar?
+  -- REGLA: solo cambiar si el usuario tiene intención clara de escape
+  if not hasValid then
+    -- No hay current, adquirir el candidato
     local isNear = false
-    if C.SMART_SWITCH_ENABLE and st.targetChar and st.aimScreenInit then
-      if bestCandidate.spos then
-        local dx = bestCandidate.spos.X - cursor.X
-        local dy = bestCandidate.spos.Y - cursor.Y
-        local d = math.sqrt(dx * dx + dy * dy)
-        if d <= C.SMART_SWITCH_NEAR_SCREEN then isNear = true end
-      end
+    if C.SMART_SWITCH_ENABLE and st.aimScreenInit and bestCandidate.spos then
+      local dx = bestCandidate.spos.X - cursor.X
+      local dy = bestCandidate.spos.Y - cursor.Y
+      local d = math.sqrt(dx * dx + dy * dy)
+      if d <= C.SMART_SWITCH_NEAR_SCREEN then isNear = true end
     end
     acquireTarget(bestCandidate, st.target ~= nil, isNear, cursor)
     st.lastSwitchTime = tick()
     return
   end
-  if st.target and st.targetChar and st.targetChar.Parent then
-    st.lostFade = expDecay(st.lostFade, 1, 0.10, dt)
-    return
+
+  -- Current válido → solo cambiar con escape intent
+  if escapeIntent >= C.USER_ESCAPE_RELEASE_THRESH then
+    st.escapeHoldTimer = st.escapeHoldTimer + dt
+    if st.escapeHoldTimer >= C.USER_ESCAPE_HOLD_TIME then
+      local isNear = false
+      if C.SMART_SWITCH_ENABLE and st.aimScreenInit and bestCandidate.spos then
+        local dx = bestCandidate.spos.X - cursor.X
+        local dy = bestCandidate.spos.Y - cursor.Y
+        local d = math.sqrt(dx * dx + dy * dy)
+        if d <= C.SMART_SWITCH_NEAR_SCREEN then isNear = true end
+      end
+      acquireTarget(bestCandidate, true, isNear, cursor)
+      st.lastSwitchTime = tick()
+      st.escapeHoldTimer = 0
+      return
+    end
+  else
+    st.escapeHoldTimer = 0
   end
-  if st.target then
-    st.lostFade = expDecay(st.lostFade, 0, C.TAU_LOST, dt)
-    if st.lostFade < 0.02 then dropTarget() end
-  end
+
+  -- Mantener target actual
+  st.lostFade = expDecay(st.lostFade, 1, 0.10, dt)
 end
 
 local function pushHistory(rootPos)
@@ -1819,6 +1881,13 @@ end
 
 local function updateOvershoot(dt, errorX, errorY, eMag)
   if not C.OVERSHOOT_SETTLE_ENABLE then return 0, 0 end
+  -- NUEVO: NO overshoot cuando el target está cerca
+  if eMag < C.OVERSHOOT_MIN_ERR then
+    st.prevErrorX = errorX
+    st.prevErrorY = errorY
+    st.prevErrorMag = eMag
+    return 0, 0
+  end
   if st.overshootTimer > 0 then
     st.overshootTimer = st.overshootTimer - dt
     local t = clamp(st.overshootTimer / C.OVERSHOOT_SETTLE_TIME, 0, 1)
@@ -2129,7 +2198,12 @@ local function computeAimScreen(char, dt, cursor)
         st.aimPointVisible = false
         st.aimPointNotVisibleSince = now
       end
-      if (now - st.aimPointNotVisibleSince) > C.AIM_VIS_GRACE_TIME then return nil end
+      -- NUEVO: cuando el target está fuera de FOV y no visible, NO devolvemos nil.
+      -- Dejamos que siga trackeando la posición aunque esté oculto.
+      -- Solo devolvemos nil si lleva MUCHO tiempo sin verse Y el usuario está jalando
+      if (now - st.aimPointNotVisibleSince) > 2.5 then
+        return nil
+      end
     else
       st.aimPointVisible = true
       st.aimPointNotVisibleSince = 0
@@ -2679,7 +2753,8 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   fx = fx + fTX * microScale * farT
   fy = fy + fTY * microScale * farT
 
-  if farT > 0.5 then
+  -- Overshoot solo si NO estamos cerca (eMag > OVERSHOOT_MIN_ERR)
+  if eMag > C.OVERSHOOT_MIN_ERR then
     local oX, oY = updateOvershoot(dt, errorX, errorY, eMag)
     fx = fx + oX * farT
     fy = fy + oY * farT
@@ -2909,6 +2984,8 @@ local connB = UserInputService.InputBegan:Connect(function(i, gp)
       st.prevErrorMag = nil
       st.overshootTimer = 0
       st.smoothErrorX = 0; st.smoothErrorY = 0
+      st.escapeIntent = 0
+      st.escapeHoldTimer = 0
     end
   end
   if i.UserInputType == Enum.UserInputType.MouseButton1 and C.CLICK_L then
@@ -2945,6 +3022,8 @@ local connB = UserInputService.InputBegan:Connect(function(i, gp)
       st.prevErrorMag = nil
       st.overshootTimer = 0
       st.smoothErrorX = 0; st.smoothErrorY = 0
+      st.escapeIntent = 0
+      st.escapeHoldTimer = 0
     end
   end
 end)
@@ -2973,6 +3052,8 @@ local connE = UserInputService.InputEnded:Connect(function(i)
       st.prevErrorMag = nil
       st.overshootTimer = 0
       st.smoothErrorX = 0; st.smoothErrorY = 0
+      st.escapeIntent = 0
+      st.escapeHoldTimer = 0
     end
   end
   if i.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -2997,6 +3078,8 @@ local connE = UserInputService.InputEnded:Connect(function(i)
       st.prevErrorMag = nil
       st.overshootTimer = 0
       st.smoothErrorX = 0; st.smoothErrorY = 0
+      st.escapeIntent = 0
+      st.escapeHoldTimer = 0
     end
   end
 end)
@@ -3107,6 +3190,8 @@ local connR = RunService.RenderStepped:Connect(function(dt)
     st.anticipateY = 0
     st.smoothErrorX = 0
     st.smoothErrorY = 0
+    st.escapeIntent = 0
+    st.escapeHoldTimer = 0
     return
   end
 
