@@ -152,7 +152,7 @@ local C = {
   AIM_LATERAL_TAU = 0.28, AIM_LATERAL_HYST = 0.03,
 
   AIM_ROOT_OFFSET_Y = 1.6, AIM_HEAD_OFFSET_Y = 0.3, AIM_FOOT_OFFSET_Y = -2.5,
-  AIM_HEIGHT_SMOOTH_TAU = 0.10, AIM_HEIGHT_CURVE_BIAS = 0.5,
+  AIM_HEIGHT_SMOOTH_TAU = 0.08, AIM_HEIGHT_CURVE_BIAS = 0.5,
   AIM_PROX_RADIUS_MULT = 1.5, AIM_PROX_RADIUS_MIN = 60.0, AIM_CENTER_FALLBACK = 0.5,
   AIM_ANCHOR_HEIGHT = 0.3,
 
@@ -169,7 +169,7 @@ local C = {
   USER_INPUT_PRIORITY_OVERRIDE = 0.05, USER_INPUT_PRIORITY_ATTACK = 0.02,
   USER_INPUT_PRIORITY_RELEASE = 0.15, USER_INPUT_FULL_STOP_THRESHOLD = 0.7,
 
-  PRED_STILL_CUTOFF = true, PRED_STILL_VEL = 5.0,
+  PRED_STILL_CUTOFF = true, PRED_STILL_VEL = 4.0,
   FLICK_CURVE_ENABLE = true, FLICK_CURVE_AMOUNT = 0.40,
 
   STICKY_ENABLE = true, STICKY_OUT_OF_FOV_TIME = 0.60, STICKY_FAST_EXTRA = 0.80,
@@ -177,19 +177,17 @@ local C = {
   STICKY_YANK_ENABLE = true, STICKY_YANK_PIXELS = 250.0,
   STICKY_YANK_TIME = 0.10, STICKY_YANK_DROP_TIME = 0.15,
 
-  TAU_REACT = 0.08, TAU_LOST = 0.35,
+  TAU_REACT = 0.08, TAU_LOST = 0.32,
 
-  SPRING_TAU = 0.042, SPRING_ZETA = 1.00, SPRING_OMEGA_SMOOTH = 0.16,
-  SPRING_OUTPUT_GAIN = 1.25, SPRING_VEL_SMOOTH_TAU = 0.016,
-  SPRING_VEL_MAX_DELTA = 30000, ZETA_SMOOTH_TAU = 0.20, TOTAL_BOOST_CAP = 2.50,
+  SPRING_TAU = 0.038, SPRING_ZETA = 1.00, SPRING_OMEGA_SMOOTH = 0.24,
+  SPRING_OUTPUT_GAIN = 1.30, SPRING_VEL_SMOOTH_TAU = 0.014,
+  SPRING_VEL_MAX_DELTA = 30000, ZETA_SMOOTH_TAU = 0.16, TOTAL_BOOST_CAP = 2.80,
 
   TARGET_SPEED_ADAPT_ENABLE = true, TARGET_SPEED_BOOST_MIN = 3.0,
-  TARGET_SPEED_BOOST_MAX = 45.0, TARGET_SPEED_BOOST_AMT = 0.70,
-  PROXIMITY_ADAPT_ENABLE = true, PROXIMITY_BOOST_RANGE = 35.0, PROXIMITY_BOOST_AMT = 0.55,
+  TARGET_SPEED_BOOST_MAX = 50.0, TARGET_SPEED_BOOST_AMT = 0.85,
+  PROXIMITY_ADAPT_ENABLE = true, PROXIMITY_BOOST_RANGE = 35.0, PROXIMITY_BOOST_AMT = 0.60,
 
-  -- NUEVO: amortiguación de llegada, frena cuando ya está encima
-  ARRIVAL_DAMP_ENABLE = true, ARRIVAL_DAMP_RANGE = 9.0, ARRIVAL_DAMP_STR = 0.60,
-  -- NUEVO: micro-adjust que solo actúa cuando settled
+  ARRIVAL_DAMP_ENABLE = true, ARRIVAL_DAMP_RANGE = 8.0, ARRIVAL_DAMP_STR = 0.35,
   MICRO_ADJUST_ENABLE = true, MICRO_ADJUST_RANGE = 6.0,
   MICRO_ADJUST_GAIN_X = 0.09, MICRO_ADJUST_GAIN_Y = 0.07,
 
@@ -215,37 +213,37 @@ local C = {
   CLOSE_ZETA_BOOST = 0.15, CLOSE_ZETA_RANGE = 5.0,
 
   FLICK_ENABLE = true, FLICK_ERR_MIN = 15.0, FLICK_ERR_FAR = 70.0,
-  FLICK_GAIN = 0.28, FLICK_RAMP = 0.260, FLICK_COOLDOWN = 0.42,
-  FLICK_WOBBLE_AMP = 0.10, FLICK_SPEED_MULT = 5.5, FLICK_TRIGGER_CHANCE = 0.28,
-  FLICK_MAX_MAG = 55.0,
+  FLICK_GAIN = 0.28, FLICK_RAMP = 0.200, FLICK_COOLDOWN = 0.34,
+  FLICK_WOBBLE_AMP = 0.10, FLICK_SPEED_MULT = 6.5, FLICK_TRIGGER_CHANCE = 0.32,
+  FLICK_MAX_MAG = 60.0,
 
   SMART_FLICK_ENABLE = true, SMART_FLICK_MIN_CONF = 0.70, SMART_FLICK_MIN_TGT_VEL = 6.0,
   SMART_FLICK_MIN_ERR = 10.0, SMART_FLICK_MAX_ERR = 100.0,
-  SMART_FLICK_LEAD_TIME = 0.15, SMART_FLICK_FLICK_TIME = 0.340,
-  SMART_FLICK_FLICK_SPEED = 2.6, SMART_FLICK_HOLD_TIME = 0.260,
+  SMART_FLICK_LEAD_TIME = 0.15, SMART_FLICK_FLICK_TIME = 0.280,
+  SMART_FLICK_FLICK_SPEED = 3.0, SMART_FLICK_HOLD_TIME = 0.220,
   SMART_FLICK_HOLD_SCALE = 0.15, SMART_FLICK_RESUME_DIST = 14.0,
-  SMART_FLICK_COOLDOWN = 0.75, SMART_FLICK_TRIGGER_CHANCE = 0.18,
+  SMART_FLICK_COOLDOWN = 0.62, SMART_FLICK_TRIGGER_CHANCE = 0.20,
   SMART_FLICK_VEL_SMOOTH_TAU = 0.100, SMART_FLICK_WOBBLE_AMP = 0.12,
-  SMART_FLICK_MAX_LEAD_RATIO = 0.60, SMART_FLICK_MAX_MAG = 75.0,
+  SMART_FLICK_MAX_LEAD_RATIO = 0.60, SMART_FLICK_MAX_MAG = 80.0,
   FLICK_LOCK_SHARED = true,
 
-  RETURN_PULSE_ENABLE = true, RETURN_PULSE_MIN_ERR = 15.0, RETURN_PULSE_PAUSE = 0.055,
-  RETURN_PULSE_DURATION = 0.080, RETURN_PULSE_GAIN = 0.40, RETURN_PULSE_SPEED = 14.0,
-  RETURN_PULSE_COOLDOWN = 0.20, RETURN_PULSE_PAUSE_SCALE = 0.15,
+  RETURN_PULSE_ENABLE = true, RETURN_PULSE_MIN_ERR = 15.0, RETURN_PULSE_PAUSE = 0.045,
+  RETURN_PULSE_DURATION = 0.070, RETURN_PULSE_GAIN = 0.40, RETURN_PULSE_SPEED = 16.0,
+  RETURN_PULSE_COOLDOWN = 0.16, RETURN_PULSE_PAUSE_SCALE = 0.15,
   RETURN_PULSE_HIT_RANGE = 2.0, RETURN_PULSE_HIT_WINDOW = 0.20,
   RETURN_PULSE_NEAR_SKIP = 5.0, RETURN_PULSE_NEAR_FADE = 20.0,
 
-  HUMANIZE_ENABLE = true, HUMAN_CURVE_AMP = 1.60, HUMAN_CURVE_FREQ = 0.55,
-  HUMAN_WOBBLE_AMP = 0.14, HUMAN_WOBBLE_FREQ = 10.0, HUMAN_WOBBLE_RANGE = 18.0,
+  HUMANIZE_ENABLE = true, HUMAN_CURVE_AMP = 1.30, HUMAN_CURVE_FREQ = 0.55,
+  HUMAN_WOBBLE_AMP = 0.12, HUMAN_WOBBLE_FREQ = 10.0, HUMAN_WOBBLE_RANGE = 18.0,
   HUMAN_SETTLE_ZETA = 0.95, HUMAN_MAINTAIN_ZETA = 1.02, HUMAN_SETTLE_RANGE = 25.0,
-  HUMAN_RESIDUAL_AMP = 0.080, HUMAN_RESIDUAL_FREQ = 5.5,
+  HUMAN_RESIDUAL_AMP = 0.070, HUMAN_RESIDUAL_FREQ = 5.5,
 
   LIVE_TRACK_ENABLE = true, LIVE_TARGET_VEL_THRESH = 4.0, LIVE_SPRING_MIN_VEL = 0.05,
-  LIVE_DIR_CHANGE_BOOST = 1.10, LIVE_DIR_CHANGE_DOT = 0.55, LIVE_DIR_CHANGE_TAU = 0.20,
+  LIVE_DIR_CHANGE_BOOST = 1.15, LIVE_DIR_CHANGE_DOT = 0.55, LIVE_DIR_CHANGE_TAU = 0.14,
   LIVE_DIR_STILL_OM = 0.35, LIVE_STILL_TARGET_VEL = 8.0,
 
-  DIR_REACTION_DELAY = 0.220, DIR_LOOKAHEAD_ENABLE = true,
-  DIR_LOOKAHEAD_TIME = 0.10, DIR_LOOKAHEAD_MAX_ERR = 40.0, DIR_LOOKAHEAD_GAIN = 0.25,
+  DIR_REACTION_DELAY = 0.120, DIR_LOOKAHEAD_ENABLE = true,
+  DIR_LOOKAHEAD_TIME = 0.12, DIR_LOOKAHEAD_MAX_ERR = 40.0, DIR_LOOKAHEAD_GAIN = 0.35,
 
   PULSE_ENABLE = true, PULSE_MIN = 14.0, PULSE_MAX = 30.0, PULSE_GAIN = 0.05,
   PULSE_FREQ = 2.5, PULSE_RAMP = 0.070, PULSE_SPEED_MULT = 20.0,
@@ -253,8 +251,8 @@ local C = {
   PULSE_MAG_JITTER = 0.30, PULSE_CURVE_ASYM = 0.25,
   PULSE_DIR_WOBBLE = 0.14, PULSE_ATTACK_FRAC = 0.20,
 
-  REACT_DELAY_MIN = 0.045, REACT_DELAY_MAX = 0.090,
-  REACT_STILL_MIN = 0.030, REACT_STILL_MAX = 0.070,
+  REACT_DELAY_MIN = 0.025, REACT_DELAY_MAX = 0.055,
+  REACT_STILL_MIN = 0.018, REACT_STILL_MAX = 0.045,
   STILL_MICRO_SCALE = 0.03, STILL_VEL_THRESH = 3.0,
 
   MANUAL_CUT_START = 0.50, MANUAL_CUT_FULL = 0.95,
@@ -285,9 +283,9 @@ local C = {
   SACCADE_MAX_INTERVAL = 2.00, SACCADE_DECAY_TAU = 0.08, SACCADE_ACTIVE_RANGE = 45.0,
   SACCADE_CHANCE = 0.55, SACCADE_NEAR_SCALE = 10.0,
 
-  PRED_DECAY_TAU = 0.45, PRED_SAMPLE_MAX_JUMP = 14.0, PRED_SAMPLE_MAX_VEL = 90.0,
-  PRED_INST_SPIKE_RATIO = 2.3, PRED_TP_RESET_TIME = 0.45,
-  PRED_HIST_SAMPLE_MIN_DT = 0.004, PRED_VEL_EMA_TAU = 0.090,
+  PRED_DECAY_TAU = 0.35, PRED_SAMPLE_MAX_JUMP = 14.0, PRED_SAMPLE_MAX_VEL = 90.0,
+  PRED_INST_SPIKE_RATIO = 2.3, PRED_TP_RESET_TIME = 0.35,
+  PRED_HIST_SAMPLE_MIN_DT = 0.004, PRED_VEL_EMA_TAU = 0.045,
 
   AIM_ANCHOR_HEIGHT = 0.3,
 
@@ -295,44 +293,44 @@ local C = {
   ANTI_BOUNCE_KILL = 0.02, ANTI_BOUNCE_CLOSE_RANGE = 6.0,
   ANTI_BOUNCE_CLOSE_KILL = 0.04, ANTI_BOUNCE_X_MULT = 0.5, ANTI_BOUNCE_Y_MULT = 0.5,
 
-  VEL_ERROR_CAP_ENABLE = true, VEL_ERROR_CAP = 1.80, VEL_ERROR_CAP_CLOSE = 1.55,
+  VEL_ERROR_CAP_ENABLE = true, VEL_ERROR_CAP = 2.00, VEL_ERROR_CAP_CLOSE = 1.70,
 
-  PRED_INERTIA_TAU = 0.280, PRED_INERTIA_VAR = 0.20,
-  PRED_INERTIA_FAST_TAU = 0.140, PRED_INERTIA_FAST_VEL = 30.0,
+  PRED_INERTIA_TAU = 0.140, PRED_INERTIA_VAR = 0.20,
+  PRED_INERTIA_FAST_TAU = 0.070, PRED_INERTIA_FAST_VEL = 30.0,
 
-  SWITCH_BLEND_TIME = 0.180,
+  SWITCH_BLEND_TIME = 0.140,
 
-  PRED_LEAD = 0.85, PRED_MAX = 14.0, PRED_W_INSTANT = 0.40,
-  PRED_W_HISTORY = 1.20, PRED_W_ADAPT = 1.00, PRED_MIN_VEL = 6.0,
-  PRED_MAX_VEL = 55.0, PRED_CURVE = 1.20, PRED_RAMP_TAU = 0.220,
-  PRED_HISTORY = 50, PRED_DIR_CONSISTENCY_TAU = 0.20,
-  PRED_CONSISTENCY_MIN = 0.55, PRED_STABLE_TIME = 0.15,
+  PRED_LEAD = 1.15, PRED_MAX = 20.0, PRED_W_INSTANT = 0.55,
+  PRED_W_HISTORY = 1.20, PRED_W_ADAPT = 1.00, PRED_MIN_VEL = 4.0,
+  PRED_MAX_VEL = 80.0, PRED_CURVE = 1.10, PRED_RAMP_TAU = 0.100,
+  PRED_HISTORY = 50, PRED_DIR_CONSISTENCY_TAU = 0.16,
+  PRED_CONSISTENCY_MIN = 0.55, PRED_STABLE_TIME = 0.12,
   PRED_VARIANCE_MAX = 6.0, PRED_DIR_STABLE_MIN = 0.60,
-  PRED_VAR_MIN = 0.85, PRED_VAR_MAX = 1.15,
+  PRED_VAR_MIN = 0.90, PRED_VAR_MAX = 1.20,
 
-  PRED_CONFIDENCE_MIN = 0.52, PRED_CONFIDENCE_SMOOTH_TAU = 0.095,
+  PRED_CONFIDENCE_MIN = 0.55, PRED_CONFIDENCE_SMOOTH_TAU = 0.050,
   PRED_CONFIDENCE_VAR_PENALTY = 8.0, PRED_CONFIDENCE_CONSIST_PENALTY = 1.2,
   PRED_CONFIDENCE_DIRCHANGE_PENALTY = 0.70,
 
   PRED_CLOSE_ENABLE = true, PRED_CLOSE_NEAR = 45.0, PRED_CLOSE_FAR = 110.0,
-  PRED_CLOSE_MIN_SCALE = 0.15, PRED_FLIP_FAST_TAU = 0.05, PRED_FLIP_PRED_MIN = 0.35,
+  PRED_CLOSE_MIN_SCALE = 0.20, PRED_FLIP_FAST_TAU = 0.04, PRED_FLIP_PRED_MIN = 0.35,
 
   PRED_Y_ENABLE = true, PRED_Y_JUMP_DETECT_VEL = 15.0,
   PRED_Y_APEX_RATIO = 0.35, PRED_Y_PULSE_RISE = 0.14,
-  PRED_Y_PULSE_FALL = 0.34, PRED_Y_PULSE_AMP = 1.2, PRED_Y_SMOOTH_TAU = 0.050,
+  PRED_Y_PULSE_FALL = 0.34, PRED_Y_PULSE_AMP = 1.2, PRED_Y_SMOOTH_TAU = 0.040,
 
   HITBOX_SUBZONE_ENABLE = true, HITBOX_SUBZONE_RATIO = 0.55,
   HITBOX_SUBZONE_CHANGE_MIN = 0.4, HITBOX_SUBZONE_CHANGE_MAX = 1.0,
   HITBOX_SUBZONE_TAU = 0.18,
 
-  SPEED_SOFT_KNEE = 260.0, SPEED_SOFT_CAP = 600.0, SPEED_HARD_CAP = 1000.0,
-  SPEED_SOFT_STR = 0.12, ERRCAP_ENABLE = true, ERRCAP_FACTOR = 1.70,
-  ERRCAP_MIN = 8.0, ERRCAP_CLOSE_RANGE = 20.0, ERRCAP_CLOSE_FACTOR = 1.50,
+  SPEED_SOFT_KNEE = 300.0, SPEED_SOFT_CAP = 700.0, SPEED_HARD_CAP = 1200.0,
+  SPEED_SOFT_STR = 0.10, ERRCAP_ENABLE = true, ERRCAP_FACTOR = 1.90,
+  ERRCAP_MIN = 9.0, ERRCAP_CLOSE_RANGE = 20.0, ERRCAP_CLOSE_FACTOR = 1.60,
 
-  TP_DETECT = true, TP_JUMP_STUDS = 20.0, TP_ASSIST_REDUCE = 0.65,
-  TP_TAU = 0.35, TP_VEL_THRESH = 100.0,
+  TP_DETECT = true, TP_JUMP_STUDS = 20.0, TP_ASSIST_REDUCE = 0.55,
+  TP_TAU = 0.30, TP_VEL_THRESH = 100.0,
 
-  AIM_SPOT_HEAD = 0.025, AIM_SPOT_TORSO = 0.035, AIM_SPOT_TAU = 1.4,
+  AIM_SPOT_HEAD = 0.025, AIM_SPOT_TORSO = 0.035, AIM_SPOT_TAU = 1.2,
   AIM_SPOT_MIN_T = 1.2, AIM_SPOT_MAX_T = 2.5, AIM_SPOT_NOISE = 0.003,
   AIM_SPOT_NOISE_SPEED = 0.05,
 
@@ -363,26 +361,26 @@ local C = {
   OCCLUSION_TRACK_ENABLE = false, OCCLUSION_MAX_TIME = 1.6, OCCLUSION_MIN_VEL = 6.0,
   OCCLUSION_CONSISTENCY_MIN = 0.78, OCCLUSION_VARIANCE_MAX = 1.2, OCCLUSION_DEVIATION_MAX = 6.0,
 
-  SOFT_RELEASE_ENABLE = true, SOFT_RELEASE_START = 220, SOFT_RELEASE_FULL = 650,
-  SOFT_RELEASE_MAX = 0.30, SOFT_RELEASE_ATTACK = 0.03, SOFT_RELEASE_DECAY = 0.15,
+  SOFT_RELEASE_ENABLE = true, SOFT_RELEASE_START = 240, SOFT_RELEASE_FULL = 680,
+  SOFT_RELEASE_MAX = 0.28, SOFT_RELEASE_ATTACK = 0.03, SOFT_RELEASE_DECAY = 0.15,
 
-  RELEASE_MAX_PIXELS = 28, RELEASE_INIT_FADE = 0.55,
+  RELEASE_MAX_PIXELS = 30, RELEASE_INIT_FADE = 0.55,
 
   AIM_BLEND_ENABLE = true, AIM_BLEND_SIGMA = 40.0, AIM_BLEND_CUTOFF_MULT = 3.0,
 
-  AIM_SMOOTH_ENABLE = true, AIM_SMOOTH_TAU = 0.080,
+  AIM_SMOOTH_ENABLE = true, AIM_SMOOTH_TAU = 0.060,
 
   PART_SNAP_ENABLE = true, PART_SNAP_DIST = 2.5, PART_SNAP_TAU_MULT = 0.25,
 
   REACTION_RAMP_ENABLE = true,
 
-  ACQUIRE_ENVELOPE_ENABLE = true, ACQUIRE_ENVELOPE_TIME = 0.22,
-  ACQUIRE_ENVELOPE_CURVE = 1.90, ACQUIRE_ENVELOPE_MIN = 0.00, ACQUIRE_BLEND_TIME = 0.180,
+  ACQUIRE_ENVELOPE_ENABLE = true, ACQUIRE_ENVELOPE_TIME = 0.120,
+  ACQUIRE_ENVELOPE_CURVE = 1.90, ACQUIRE_ENVELOPE_MIN = 0.00, ACQUIRE_BLEND_TIME = 0.140,
 
   ACQUIRE_VEL_CAP_ENABLE = false, ACQUIRE_VEL_CAP_MIN = 40, ACQUIRE_VEL_CAP_MAX = 900,
 
   SMART_SWITCH_ENABLE = true, SMART_SWITCH_NEAR_SCREEN = 220,
-  SMART_SWITCH_NEAR_BLEND = 0.200, SMART_SWITCH_FAR_BLEND = 0.140,
+  SMART_SWITCH_NEAR_BLEND = 0.170, SMART_SWITCH_FAR_BLEND = 0.120,
   SMART_SWITCH_PRESERVE_VEL = 0.0, SMART_SWITCH_KEEP_ACQ = true,
 
   MICRO_CORRECT_ENABLE = true, MICRO_CORRECT_RANGE = 6.0, MICRO_CORRECT_AMP = 0.10,
@@ -399,7 +397,7 @@ local C = {
   FATIGUE_ENABLE = true, FATIGUE_RATE = 0.045, FATIGUE_DECAY = 0.55,
   FATIGUE_DRIFT_AMP = 0.22,
 
-  ANTICIPATE_ENABLE = true, ANTICIPATE_GAIN = 0.06, ANTICIPATE_TAU = 0.180,
+  ANTICIPATE_ENABLE = true, ANTICIPATE_GAIN = 0.09, ANTICIPATE_TAU = 0.140,
 }
 
 local st = {
@@ -1455,7 +1453,7 @@ local function computeBlendedVelocity()
     instX = hX; instY = hY; instZ = hZ
   end
   local targetAdapt = Vector3.new(hX, hY, hZ)
-  st.adaptVel = st.adaptVel:Lerp(targetAdapt, math.min(1, 0.22))
+  st.adaptVel = st.adaptVel:Lerp(targetAdapt, math.min(1, 0.30))
   local wTotal = C.PRED_W_INSTANT + C.PRED_W_HISTORY + C.PRED_W_ADAPT
   local bx = (instX * C.PRED_W_INSTANT + hX * C.PRED_W_HISTORY + st.adaptVel.X * C.PRED_W_ADAPT) / wTotal
   local by = (instY * C.PRED_W_INSTANT + hY * C.PRED_W_HISTORY + st.adaptVel.Y * C.PRED_W_ADAPT) / wTotal
@@ -1495,11 +1493,11 @@ local function updateVelocityInertia(vel, dt)
   end
   st.predVelSmoothX = expDecay(st.predVelSmoothX, st.predVelX, C.PRED_VEL_EMA_TAU, dt)
   st.predVelSmoothZ = expDecay(st.predVelSmoothZ, st.predVelZ, C.PRED_VEL_EMA_TAU, dt)
-  st.predVelYSmooth = expDecay(st.predVelYSmooth, st.predVelY, 0.08, dt)
+  st.predVelYSmooth = expDecay(st.predVelYSmooth, st.predVelY, 0.06, dt)
   local varX = srcX - st.predVelSmoothX
   local varZ = srcZ - st.predVelSmoothZ
   local variance = math.sqrt(varX * varX + varZ * varZ)
-  st.predVarSmooth = expDecay(st.predVarSmooth, variance, 0.10, dt)
+  st.predVarSmooth = expDecay(st.predVarSmooth, variance, 0.08, dt)
   st.lastTargetVelMag = math.sqrt(st.predVelSmoothX ^ 2 + st.predVelSmoothZ ^ 2)
 end
 
@@ -1727,7 +1725,6 @@ local function updateVerticalMicro(dt, eMag, errorY)
   local fMod = 1 + n1(st.vertMicroT * 0.18, 120) * C.VERT_MICRO_FREQ_MOD
   local aMod = 1 + n1(st.vertMicroT * 0.42, 121) * 0.45
   local m = fbm1(st.vertMicroT * C.VERT_MICRO_FREQ_BASE * fMod, 122, 3) * C.VERT_MICRO_AMP * rangeT * aMod
-  -- eliminar amplificación de errorY negativo (causaba jalones hacia arriba)
   return m
 end
 
@@ -1912,7 +1909,6 @@ end
 
 local function updateSmartFlick(dt, cursor, errorX, errorY, eMag)
   if not C.SMART_FLICK_ENABLE then return end
-  -- NUEVO: no disparar smart flick si ya está cerca (evita jalones raros)
   if eMag < 16.0 then return end
   if st.smartFlickCooldown > 0 then st.smartFlickCooldown = st.smartFlickCooldown - dt end
   if st.smartFlickTimer > 0 then
@@ -2008,7 +2004,6 @@ local function updateReturnPulse(dt, errorX, errorY)
   if not C.RETURN_PULSE_ENABLE then st.recentHitTime = nil; return end
   if st.returnCooldown > 0 then st.returnCooldown = st.returnCooldown - dt end
   local eMag = vlen(errorX, errorY)
-  -- NUEVO: no disparar si está cerca
   if eMag < 8.0 then st.recentHitTime = nil; return end
   local now = tick()
   if eMag < C.RETURN_PULSE_HIT_RANGE then st.recentHitTime = now end
@@ -2258,11 +2253,9 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   st.cutSmooth = expDecay(st.cutSmooth, manualCutRaw, C.MANUAL_CUT_SMOOTH_TAU, dt)
   local manualCut = st.cutSmooth
 
-  -- ===== NEAR TARGET DETECTION =====
-  -- Cuando el error es pequeño, sentimos que ya llegamos y hacemos micro-adjustes suaves
   local nearRange = 10.0
   local nearT = 1 - clamp(eMag / nearRange, 0, 1)
-  nearT = nearT * nearT * (3 - 2 * nearT)  -- smoothstep
+  nearT = nearT * nearT * (3 - 2 * nearT)
   local farT = 1 - nearT
 
   if C.DIR_LOOKAHEAD_ENABLE and st.targetChar then
@@ -2293,7 +2286,6 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
         useDirX, useDirZ = ndx, ndz
         if st.dirChangePending then st.dirChangePending = false end
       end
-      -- Near target, desactivamos lookahead (era causante de jalones cuando ya llegaste)
       local lookaheadDist = clamp(C.DIR_LOOKAHEAD_TIME * tvMag, 0, C.DIR_LOOKAHEAD_MAX_ERR)
       local laGain = C.DIR_LOOKAHEAD_GAIN * farT
       local lx = useDirX * lookaheadDist * laGain
@@ -2345,7 +2337,6 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     errorY = errorY + ay * farT
   end
 
-  -- Return pulse solo cuando NO estamos cerca
   if farT > 0.4 then
     updateReturnPulse(dt, errorX, errorY)
   else
@@ -2353,7 +2344,6 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     st.returnPauseTimer = 0
     st.returnPulseTimer = 0
   end
-  -- Smart flick solo cuando no estamos cerca (ya tenía gate interno)
   updateSmartFlick(dt, cursor, errorX, errorY, eMag)
   if st.smartFlickActive and st.smartFlickHoldTimer > 0 then
     local parkErrX = st.smartFlickParkX - cursor.X
@@ -2369,7 +2359,6 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   if C.FLICK_ENABLE then
     if st.flickCooldown > 0 then st.flickCooldown = st.flickCooldown - dt end
     st.flickTimer = math.max(0, st.flickTimer - dt)
-    -- NUEVO: solo dispara si NO estamos settled (nearT < 0.4)
     if eMag > C.FLICK_ERR_MIN and st.flickCooldown <= 0 and reactRamp > 0.5
        and not anyFlickActive() and math.random() < C.FLICK_TRIGGER_CHANCE
        and st.userYankTimer <= 0 and st.userMoveInf < 0.20
@@ -2390,7 +2379,6 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   local pulseX, pulseY = 0, 0
   if C.PULSE_ENABLE then
     st.pulseTimerNext = st.pulseTimerNext - dt
-    -- NUEVO: solo dispara si NO estamos settled
     if st.pulseTimerNext <= 0 then
       local spd = st.mouseSpeedSmooth or 0
       if eMag > C.PULSE_MIN and eMag < C.PULSE_MAX and spd < 60 and nearT < 0.4 then
@@ -2460,7 +2448,6 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   end
   local totalBoost = liveOmegaBoost * speedMod * gaitMul * pauseMul * targetSpeedBoost * proximityBoost
 
-  -- NUEVO: arrival damping - cuando está muy cerca, reducimos velocidad para no slam
   if C.ARRIVAL_DAMP_ENABLE and eMag < C.ARRIVAL_DAMP_RANGE then
     local arrT = 1 - (eMag / C.ARRIVAL_DAMP_RANGE)
     arrT = arrT * arrT * (3 - 2 * arrT)
@@ -2502,7 +2489,6 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     tz = tz * tz * (3 - 2 * tz)
     speedZetaBoost = tz * 0.18
   end
-  -- NUEVO: cuando estamos settled, subimos damping extra para evitar oscilación
   local settleZetaBoost = nearT * 0.12
   local zetaTarget = zetaBase + C.CLOSE_ZETA_BOOST * zetaT + speedZetaBoost + settleZetaBoost
   st.zetaSmooth = expDecay(st.zetaSmooth, zetaTarget, C.ZETA_SMOOTH_TAU, dt)
@@ -2521,7 +2507,6 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
       vertEaseMult = vertEaseMult + (C.VERT_EASE_MID_MULT - 1) * midCurve
     end
   end
-  -- NUEVO: cuando settled, bajamos el boost omega vertical para no jalones hacia arriba
   local settleVertMul = lerp(1.0, 0.75, nearT)
   local omY = om * vertOmegaMult * vertEaseMult * settleVertMul
   local kY = omY * omY
@@ -2665,12 +2650,10 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     microScale = lerp(0.03, 1.0, t)
   end
 
-  -- Cuando settled, sólo micro adjust suave (sin oscilaciones grandes)
   if C.MICRO_ADJUST_ENABLE and nearT > 0.15 then
     local madjT = nearT
     local gx = C.MICRO_ADJUST_GAIN_X * errorX * madjT * dt * 60
     local gy = C.MICRO_ADJUST_GAIN_Y * errorY * madjT * dt * 60
-    -- suavizado
     st.smoothErrorX = expDecay(st.smoothErrorX, errorX, 0.10, dt)
     st.smoothErrorY = expDecay(st.smoothErrorY, errorY, 0.10, dt)
     fx = fx + gx * 0.02
@@ -2689,7 +2672,6 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   fx = fx + fTX * microScale * farT
   fy = fy + fTY * microScale * farT
 
-  -- Overshoot solo cuando NO estamos settled (era fuente de jalones)
   if farT > 0.5 then
     local oX, oY = updateOvershoot(dt, errorX, errorY, eMag)
     fx = fx + oX * farT
@@ -2706,7 +2688,6 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     fy = fy * blinkScale
   end
 
-  -- Osciladores: reducidos cuando settled
   local oscFarMul = lerp(0.25, 1.0, farT)
   local driftX, driftY = updateAimDrift(dt, eMag)
   fx = fx + driftX * microScale * oscFarMul
