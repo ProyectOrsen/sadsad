@@ -91,7 +91,7 @@ end
 local C = {
   TOGGLE = Enum.KeyCode.X,
   HUD_TOGGLE_KEY = Enum.KeyCode.RightShift,
-  HUD_ENABLED = true,
+  HUD_ENABLED = false,
   CLICK_L = true, CLICK_R = true, AUTO = false,
   FOV = 120, FOV_TRAIL = 120, FOV_CURRENT_TARGET_BONUS = 0,
   RANGE_PLAYER = 2999, RANGE_NPC = 700, RANGE_JUDGE = 20,
