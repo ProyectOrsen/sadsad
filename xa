@@ -90,8 +90,6 @@ end
 
 local C = {
   TOGGLE = Enum.KeyCode.X,
-  HUD_TOGGLE_KEY = Enum.KeyCode.RightShift,
-  HUD_ENABLED = false,
   CLICK_L = true, CLICK_R = true, AUTO = false,
   FOV = 120, FOV_TRAIL = 120, FOV_CURRENT_TARGET_BONUS = 0,
   RANGE_PLAYER = 2999, RANGE_NPC = 700, RANGE_JUDGE = 20,
@@ -211,17 +209,19 @@ local C = {
   CLOSE_ZETA_BOOST = 0.15, CLOSE_ZETA_RANGE = 5.0,
 
   FLICK_ENABLE = true, FLICK_ERR_MIN = 15.0, FLICK_ERR_FAR = 70.0,
-  FLICK_GAIN = 0.28, FLICK_RAMP = 0.160, FLICK_COOLDOWN = 0.28,
-  FLICK_WOBBLE_AMP = 0.10, FLICK_SPEED_MULT = 10.0, FLICK_TRIGGER_CHANCE = 0.35,
+  FLICK_GAIN = 0.28, FLICK_RAMP = 0.260, FLICK_COOLDOWN = 0.42,
+  FLICK_WOBBLE_AMP = 0.10, FLICK_SPEED_MULT = 5.5, FLICK_TRIGGER_CHANCE = 0.28,
+  FLICK_MAX_MAG = 55.0,
 
   SMART_FLICK_ENABLE = true, SMART_FLICK_MIN_CONF = 0.70, SMART_FLICK_MIN_TGT_VEL = 6.0,
   SMART_FLICK_MIN_ERR = 10.0, SMART_FLICK_MAX_ERR = 100.0,
-  SMART_FLICK_LEAD_TIME = 0.15, SMART_FLICK_FLICK_TIME = 0.200,
-  SMART_FLICK_FLICK_SPEED = 6.0, SMART_FLICK_HOLD_TIME = 0.180,
-  SMART_FLICK_HOLD_SCALE = 0.10, SMART_FLICK_RESUME_DIST = 14.0,
-  SMART_FLICK_COOLDOWN = 0.55, SMART_FLICK_TRIGGER_CHANCE = 0.20,
+  SMART_FLICK_LEAD_TIME = 0.15, SMART_FLICK_FLICK_TIME = 0.340,
+  SMART_FLICK_FLICK_SPEED = 2.6, SMART_FLICK_HOLD_TIME = 0.260,
+  SMART_FLICK_HOLD_SCALE = 0.15, SMART_FLICK_RESUME_DIST = 14.0,
+  SMART_FLICK_COOLDOWN = 0.75, SMART_FLICK_TRIGGER_CHANCE = 0.18,
   SMART_FLICK_VEL_SMOOTH_TAU = 0.100, SMART_FLICK_WOBBLE_AMP = 0.12,
-  SMART_FLICK_MAX_LEAD_RATIO = 0.60, FLICK_LOCK_SHARED = true,
+  SMART_FLICK_MAX_LEAD_RATIO = 0.60, SMART_FLICK_MAX_MAG = 75.0,
+  FLICK_LOCK_SHARED = true,
 
   RETURN_PULSE_ENABLE = true, RETURN_PULSE_MIN_ERR = 8.0, RETURN_PULSE_PAUSE = 0.055,
   RETURN_PULSE_DURATION = 0.080, RETURN_PULSE_GAIN = 0.40, RETURN_PULSE_SPEED = 14.0,
@@ -378,6 +378,22 @@ local C = {
   SMART_SWITCH_ENABLE = true, SMART_SWITCH_NEAR_SCREEN = 220,
   SMART_SWITCH_NEAR_BLEND = 0.200, SMART_SWITCH_FAR_BLEND = 0.140,
   SMART_SWITCH_PRESERVE_VEL = 0.0, SMART_SWITCH_KEEP_ACQ = true,
+
+  MICRO_CORRECT_ENABLE = true, MICRO_CORRECT_RANGE = 6.0, MICRO_CORRECT_AMP = 0.14,
+  MICRO_CORRECT_FREQ = 2.6,
+
+  BLINK_ENABLE = true, BLINK_MIN_INTERVAL = 1.8, BLINK_MAX_INTERVAL = 4.5,
+  BLINK_CHANCE = 0.35, BLINK_DURATION = 0.055, BLINK_SCALE = 0.72,
+
+  OVERSHOOT_SETTLE_ENABLE = true, OVERSHOOT_SETTLE_RANGE = 22.0,
+  OVERSHOOT_SETTLE_TIME = 0.140, OVERSHOOT_SETTLE_AMP = 0.16,
+
+  HANDSHAKE_ENABLE = true, HANDSHAKE_AMP = 0.045, HANDSHAKE_FREQ = 7.2,
+
+  FATIGUE_ENABLE = true, FATIGUE_RATE = 0.045, FATIGUE_DECAY = 0.55,
+  FATIGUE_DRIFT_AMP = 0.35,
+
+  ANTICIPATE_ENABLE = true, ANTICIPATE_GAIN = 0.18, ANTICIPATE_TAU = 0.180,
 }
 
 local st = {
@@ -445,7 +461,7 @@ local st = {
   lastTargetVelMag = 0, mouseSpeedRaw = 0, mouseSpeedSmooth = 0,
   mouseDeltaX = 0, mouseDeltaY = 0, sentAccumX = 0, sentAccumY = 0,
   lastBatchMag = 0, manualPeakTime = 0, manualHoldTimer = 0,
-  editorVisible = true, lastSendTime = 0, cutSmooth = 0,
+  lastSendTime = 0, cutSmooth = 0,
   releaseSmooth = 0, aimSmoothWorld = nil, aimPointName = nil,
   acquireEnvT = 0, humanCurveT = math.random() * 100,
   humanWobbleT = math.random() * 100, humanResidualT = math.random() * 100,
@@ -460,7 +476,6 @@ local st = {
   gamePitch = 0, gameMag = 0, gameEffectActive = false,
   gameEffectTimer = 0, sensYaw = 0.10, sensPitch = 0.10,
   userSpeed = 0, userDirX = 0, userDirY = 0, gameSignalSmooth = 0,
-  hudVisible = false,
 
   recoilPrevCamPitch = nil,
   recoilPrevCamYaw = nil,
@@ -477,6 +492,15 @@ local st = {
   recoilCompX = 0,
   recoilShotsThisBurst = 0,
   recoilBurstTimer = 0,
+
+  microCorrectT = math.random() * 100,
+  blinkTimer = 2.0,
+  blinkHold = 0,
+  prevErrorX = 0, prevErrorY = 0, prevErrorMag = nil,
+  overshootTimer = 0, overshootDirX = 0, overshootDirY = 0,
+  handShakeT = math.random() * 100,
+  fatigueT = math.random() * 100, fatigueLevel = 0,
+  anticipateX = 0, anticipateY = 0,
 }
 
 local function clamp(v, lo, hi)
@@ -499,6 +523,20 @@ local function easeInOutCos(t) return (1 - math.cos(clamp(t, 0, 1) * math.rad(18
 local function rotate2D(x, y, ang)
   local c, s = math.cos(ang), math.sin(ang)
   return x * c - y * s, x * s + y * c
+end
+local function flickCurve(t)
+  t = clamp(t, 0, 1)
+  local ramp = 0.42
+  local peak = 0.92
+  if t < ramp then
+    local x = t / ramp
+    return peak * (x * x * (3 - 2 * x))
+  elseif t > 1 - ramp then
+    local x = (1 - t) / ramp
+    return peak * (x * x * (3 - 2 * x))
+  else
+    return peak
+  end
 end
 
 local function rerollAll()
@@ -590,10 +628,8 @@ local function updateRecoilAlways(dt)
     st.recoilCompX = 0
     return 0, 0
   end
-
   local isFiring = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
   local manualFire = st.m1
-
   if isFiring or manualFire then
     st.recoilHoldTimer = C.RECOIL_HOLD_MAX
     st.recoilActive = true
@@ -611,16 +647,13 @@ local function updateRecoilAlways(dt)
       st.recoilActive = false
     end
   end
-
   if not st.recoilActive then
     st.recoilCompY = expDecay(st.recoilCompY, 0, C.RECOIL_DECAY_TAU, dt)
     st.recoilCompX = expDecay(st.recoilCompX, 0, C.RECOIL_DECAY_TAU, dt)
     return 0, 0
   end
-
   local compY = 0
   local compX = 0
-
   if C.RECOIL_USE_FIXED_MOUSEREL then
     compY = C.RECOIL_FIXED_Y * C.RECOIL_STRENGTH_VERT
     compX = C.RECOIL_FIXED_X * C.RECOIL_STRENGTH_HORZ
@@ -629,50 +662,38 @@ local function updateRecoilAlways(dt)
     local look = cf.LookVector
     local pitch = math.asin(clamp(look.Y, -1, 1))
     local yaw = math.atan2(look.X, look.Z)
-
     if st.recoilPrevCamPitch and st.recoilPrevCamYaw then
       local dPitch = pitch - st.recoilPrevCamPitch
       local dYaw = yaw - st.recoilPrevCamYaw
       if dYaw > math.pi then dYaw = dYaw - 2 * math.pi end
       if dYaw < -math.pi then dYaw = dYaw + 2 * math.pi end
-
       local ourPitchContrib = (st.lastSentY or 0) * st.recoilSensPitch
       local ourYawContrib = (st.sentAccumX or 0) * st.recoilSensYaw
-
       local recoilDPitch = dPitch - ourPitchContrib
       local recoilDYaw = dYaw - ourYawContrib
-
       if math.abs(recoilDPitch) > C.RECOIL_CAM_DELTA_MIN and math.abs(recoilDPitch) < C.RECOIL_CAM_DELTA_MAX then
         st.recoilAccumPitch = st.recoilAccumPitch + recoilDPitch
       end
       if math.abs(recoilDYaw) > C.RECOIL_CAM_DELTA_MIN and math.abs(recoilDYaw) < C.RECOIL_CAM_DELTA_MAX then
         st.recoilAccumYaw = st.recoilAccumYaw + recoilDYaw
       end
-
       st.recoilAccumPitch = expDecay(st.recoilAccumPitch, 0, C.RECOIL_CAM_SMOOTH_TAU, dt)
       st.recoilAccumYaw = expDecay(st.recoilAccumYaw, 0, C.RECOIL_CAM_SMOOTH_TAU, dt)
     end
-
     st.recoilPrevCamPitch = pitch
     st.recoilPrevCamYaw = yaw
-
     compY = st.recoilAccumPitch * C.RECOIL_CAM_PITCH_GAIN * C.RECOIL_STRENGTH_VERT
     compX = st.recoilAccumYaw * C.RECOIL_CAM_YAW_GAIN * C.RECOIL_STRENGTH_HORZ
-
     local pixelPerDegree = C.RECOIL_PIXEL_PER_FRAME * 60
     compY = compY * pixelPerDegree
     compX = compX * pixelPerDegree
   end
-
   compY = compY * (1 + st.recoilShotsThisBurst * C.RECOIL_RAMP_UP)
   compX = compX * (1 + st.recoilShotsThisBurst * C.RECOIL_RAMP_UP)
-
   compY = clamp(compY, -C.RECOIL_MAX_COMP, C.RECOIL_MAX_COMP)
   compX = clamp(compX, -C.RECOIL_MAX_COMP, C.RECOIL_MAX_COMP)
-
   st.recoilCompY = compY * C.RECOIL_MOUSEREL_MULT
   st.recoilCompX = compX * C.RECOIL_MOUSEREL_MULT
-
   return st.recoilCompX, st.recoilCompY
 end
 
@@ -873,7 +894,6 @@ local function computeDynamicAimY(char, cursor, dt)
   local root = char:FindFirstChild("HumanoidRootPart")
   if not root then return nil end
   local isR6 = char:FindFirstChild("Torso") ~= nil and char:FindFirstChild("UpperTorso") == nil
-
   local topY, botY
   if isR6 then
     local torso = char:FindFirstChild("Torso")
@@ -896,7 +916,6 @@ local function computeDynamicAimY(char, cursor, dt)
     botY = root.Position.Y - 2.4
   end
   if botY >= topY then botY = topY - 1.0 end
-
   local topScreen = camera:WorldToViewportPoint(Vector3.new(root.Position.X, topY, root.Position.Z))
   local botScreen = camera:WorldToViewportPoint(Vector3.new(root.Position.X, botY, root.Position.Z))
   if topScreen.Z <= 0 or botScreen.Z <= 0 then
@@ -904,10 +923,8 @@ local function computeDynamicAimY(char, cursor, dt)
   end
   local span = botScreen.Y - topScreen.Y
   if math.abs(span) < 1 then return root.Position.Y + C.AIM_ROOT_OFFSET_Y end
-
   local rawT = clamp((cursor.Y - topScreen.Y) / span, 0, 1)
   local cursorInsideBody = cursor.Y >= topScreen.Y - 15 and cursor.Y <= botScreen.Y + 15
-
   local finalT
   if cursorInsideBody then
     finalT = rawT
@@ -915,11 +932,8 @@ local function computeDynamicAimY(char, cursor, dt)
     local regionT = getRegionT()
     finalT = lerp(regionT, rawT, 0.5)
   end
-
   finalT = finalT ^ (1 + (1 - C.AIM_HEIGHT_CURVE_BIAS) * 0.20)
-
   local targetY = lerp(topY, botY, finalT)
-
   if not st.aimDynamicY then
     st.aimDynamicY = targetY
   else
@@ -1157,6 +1171,12 @@ local function acquireTarget(chosen, wasExisting, isNearSwitch, cursor)
   st.aimLateralTimer = 0
   st.aimRegionIndex = 1
   st.aimRegionTimer = 0
+  st.blinkTimer = rRange(1.5, 3.5)
+  st.blinkHold = 0
+  st.prevErrorMag = nil
+  st.overshootTimer = 0
+  st.anticipateX = 0
+  st.anticipateY = 0
   rerollAll()
   if wasExisting and st.aimScreenInit then
     st.switchFromX = curX
@@ -1207,6 +1227,8 @@ local function dropTarget()
   st.aimPointVisible = true
   st.aimPointNotVisibleSince = 0
   st.aimDynamicY = nil
+  st.prevErrorMag = nil
+  st.overshootTimer = 0
 end
 
 local function updateYankDetection(dt)
@@ -1754,6 +1776,98 @@ local function updateMicroPause(dt)
   end
 end
 
+-- ===== NUEVAS FUNCIONES DE REALISMO =====
+
+local function updateMicroCorrect(dt, eMag)
+  if not C.MICRO_CORRECT_ENABLE then return 0, 0 end
+  if eMag > C.MICRO_CORRECT_RANGE then return 0, 0 end
+  local rangeT = 1 - (eMag / C.MICRO_CORRECT_RANGE)
+  rangeT = rangeT * rangeT
+  st.microCorrectT = st.microCorrectT + dt
+  local fMod = 1 + n1(st.microCorrectT * 0.22, 210) * 0.35
+  local mx = math.sin(st.microCorrectT * 2 * math.pi * C.MICRO_CORRECT_FREQ * fMod) * C.MICRO_CORRECT_AMP * rangeT
+  local my = math.cos(st.microCorrectT * 2 * math.pi * C.MICRO_CORRECT_FREQ * fMod * 1.13) * C.MICRO_CORRECT_AMP * rangeT * 0.7
+  return mx, my
+end
+
+local function updateBlink(dt, eMag)
+  if not C.BLINK_ENABLE then return 1.0 end
+  st.blinkTimer = st.blinkTimer - dt
+  if st.blinkTimer <= 0 then
+    st.blinkTimer = rRange(C.BLINK_MIN_INTERVAL, C.BLINK_MAX_INTERVAL)
+    if eMag > 2.0 and math.random() < C.BLINK_CHANCE then
+      st.blinkHold = C.BLINK_DURATION
+    end
+  end
+  if st.blinkHold > 0 then
+    st.blinkHold = st.blinkHold - dt
+    return C.BLINK_SCALE
+  end
+  return 1.0
+end
+
+local function updateOvershoot(dt, errorX, errorY, eMag)
+  if not C.OVERSHOOT_SETTLE_ENABLE then return 0, 0 end
+  if st.overshootTimer > 0 then
+    st.overshootTimer = st.overshootTimer - dt
+    local t = clamp(st.overshootTimer / C.OVERSHOOT_SETTLE_TIME, 0, 1)
+    local curve = bell(t)
+    local amp = C.OVERSHOOT_SETTLE_AMP * math.min(eMag / C.OVERSHOOT_SETTLE_RANGE, 1.0)
+    return st.overshootDirX * amp * curve, st.overshootDirY * amp * curve
+  end
+  if st.prevErrorMag and st.prevErrorMag > 6.0 and eMag < 1.5 then
+    local prevNormX = st.prevErrorX / math.max(st.prevErrorMag, 0.001)
+    local prevNormY = st.prevErrorY / math.max(st.prevErrorMag, 0.001)
+    st.overshootDirX = -prevNormX
+    st.overshootDirY = -prevNormY
+    st.overshootTimer = C.OVERSHOOT_SETTLE_TIME
+  end
+  st.prevErrorX = errorX
+  st.prevErrorY = errorY
+  st.prevErrorMag = eMag
+  return 0, 0
+end
+
+local function updateHandShake(dt, eMag)
+  if not C.HANDSHAKE_ENABLE then return 0, 0 end
+  if eMag > 8.0 then return 0, 0 end
+  st.handShakeT = st.handShakeT + dt
+  local scale = 1 - (eMag / 8.0)
+  scale = scale * scale
+  local amp = C.HANDSHAKE_AMP * scale
+  local hx = math.sin(st.handShakeT * 2 * math.pi * C.HANDSHAKE_FREQ) * amp
+  local hy = math.cos(st.handShakeT * 2 * math.pi * C.HANDSHAKE_FREQ * 1.21) * amp * 0.65
+  return hx, hy
+end
+
+local function updateFatigue(dt, eMag)
+  if not C.FATIGUE_ENABLE then return 0, 0 end
+  st.fatigueT = st.fatigueT + dt
+  if eMag > 15.0 then
+    st.fatigueLevel = math.min(1.0, st.fatigueLevel + dt * C.FATIGUE_RATE)
+  else
+    st.fatigueLevel = math.max(0.0, st.fatigueLevel - dt * C.FATIGUE_DECAY)
+  end
+  if st.fatigueLevel < 0.05 then return 0, 0 end
+  local fAmp = st.fatigueLevel * C.FATIGUE_DRIFT_AMP
+  local fx = fbm1(st.fatigueT * 0.35, 220, 3) * fAmp
+  local fy = fbm1(st.fatigueT * 0.32, 221, 3) * fAmp * 0.7
+  return fx, fy
+end
+
+local function updateAnticipate(dt, errorX, errorY, eMag)
+  if not C.ANTICIPATE_ENABLE then return 0, 0 end
+  local targetAX, targetAY = 0, 0
+  if eMag > 3.0 and eMag < 60.0 then
+    local nx, ny = errorX / eMag, errorY / eMag
+    targetAX = nx * C.ANTICIPATE_GAIN
+    targetAY = ny * C.ANTICIPATE_GAIN
+  end
+  st.anticipateX = expDecay(st.anticipateX, targetAX, C.ANTICIPATE_TAU, dt)
+  st.anticipateY = expDecay(st.anticipateY, targetAY, C.ANTICIPATE_TAU, dt)
+  return st.anticipateX, st.anticipateY
+end
+
 local function updateSmartFlickScreenVel(dt)
   if not st.targetChar or not st.targetChar.Parent then
     st.smlScreenVelInit = false
@@ -1858,6 +1972,15 @@ local function updateSmartFlick(dt, cursor, errorX, errorY, eMag)
   local endFy = parkY - cursor.Y
   local endMag = vlen(endFx, endFy)
   if startMag < 3 or endMag < 3 then return end
+  -- cap: nunca sobrepasar SMART_FLICK_MAX_MAG
+  if endMag > C.SMART_FLICK_MAX_MAG then
+    local s = C.SMART_FLICK_MAX_MAG / endMag
+    endFx = endFx * s
+    endFy = endFy * s
+    parkX = cursor.X + endFx
+    parkY = cursor.Y + endFy
+    endMag = C.SMART_FLICK_MAX_MAG
+  end
   st.smlStartDirX = startFx / startMag
   st.smlStartDirY = startFy / startMag
   st.smlEndDirX = endFx / endMag
@@ -2194,6 +2317,14 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     end
     eMag = vlen(errorX, errorY)
   end
+
+  -- ===== REALISMO EXTRA integrado =====
+  if C.ANTICIPATE_ENABLE then
+    local ax, ay = updateAnticipate(dt, errorX, errorY, eMag)
+    errorX = errorX + ax
+    errorY = errorY + ay
+  end
+
   updateReturnPulse(dt, errorX, errorY)
   updateSmartFlick(dt, cursor, errorX, errorY, eMag)
   if st.smartFlickActive and st.smartFlickHoldTimer > 0 then
@@ -2219,7 +2350,7 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
         local frac = C.FLICK_GAIN * (0.5 + 0.5 * t)
         st.flickDirX = errorX / eMag
         st.flickDirY = errorY / eMag
-        st.flickMag = eMag * frac
+        st.flickMag = math.min(eMag * frac, C.FLICK_MAX_MAG)
         st.flickTimer = C.FLICK_RAMP
         st.flickCooldown = C.FLICK_COOLDOWN
         st.flickPhaseSeed = math.random() * 100
@@ -2394,10 +2525,12 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   local emaA = 1 - math.exp(-dt / C.SPRING_VEL_SMOOTH_TAU)
   st.springVsX = st.springVsX + (st.springVX - st.springVsX) * emaA
   st.springVsY = st.springVsY + (st.springVY - st.springVsY) * emaA
+
+  -- FLICK con curva suave (no pico TP)
   if C.FLICK_ENABLE and st.flickTimer > 0 then
     local ft = st.flickTimer / C.FLICK_RAMP
     local progress = 1 - ft
-    local curve = bell(progress)
+    local curve = flickCurve(progress)
     local wobbleAngle = math.sin(progress * math.rad(360) * 1.3 + st.flickPhaseSeed) * C.FLICK_WOBBLE_AMP
     local rx, ry = rotate2D(st.flickDirX, st.flickDirY, wobbleAngle)
     local flickSpeed = st.flickMag * C.FLICK_SPEED_MULT
@@ -2429,7 +2562,7 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   if st.smartFlickTimer > 0 then
     local sft = st.smartFlickTimer / C.SMART_FLICK_FLICK_TIME
     local sProgress = 1 - sft
-    local sCurve = bell(sProgress)
+    local sCurve = flickCurve(sProgress)
     local curveMix = easeInOutCos(sProgress) * C.FLICK_CURVE_AMOUNT
     local curveDx = lerp(st.smlStartDirX, st.smlEndDirX, curveMix)
     local curveDy = lerp(st.smlStartDirY, st.smlEndDirY, curveMix)
@@ -2489,6 +2622,30 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     local t = clamp((tvMag - 0.6) / math.max(C.STILL_VEL_THRESH - 0.6, 0.001), 0, 1)
     microScale = lerp(0.03, 1.0, t)
   end
+
+  -- Realismo extra: microcorrect, blink, overshoot, handshake, fatigue
+  local mcX, mcY = updateMicroCorrect(dt, eMag)
+  fx = fx + mcX * microScale
+  fy = fy + mcY * microScale
+
+  local hX, hY = updateHandShake(dt, eMag)
+  fx = fx + hX * microScale
+  fy = fy + hY * microScale
+
+  local fTX, fTY = updateFatigue(dt, eMag)
+  fx = fx + fTX * microScale
+  fy = fy + fTY * microScale
+
+  local oX, oY = updateOvershoot(dt, errorX, errorY, eMag)
+  fx = fx + oX
+  fy = fy + oY
+
+  local blinkScale = updateBlink(dt, eMag)
+  if blinkScale < 1.0 then
+    fx = fx * blinkScale
+    fy = fy * blinkScale
+  end
+
   local driftX, driftY = updateAimDrift(dt, eMag)
   fx = fx + driftX * microScale
   fy = fy + driftY * microScale
@@ -2586,7 +2743,7 @@ local function handleLostTarget(dt)
   st.springVY = st.springVY * extraDamp
   st.springVsX = st.springVsX * decay * extraDamp
   st.springVsY = st.springVsY * decay * extraDamp
-  st.recoilOffsetY = expDecay(st.recoilOffsetY, 0, C.RECOIL_DECAY, dt)
+  st.recoilOffsetY = 0
   st.tpActive = expDecay(st.tpActive, 0, C.TP_TAU, dt)
   if st.lostCoastTimer <= 0 and st.lostTimer < 0.02 then
     st.lostCoastTimer = C.LOST_COAST_TIME
@@ -2644,258 +2801,13 @@ local function handleLostTarget(dt)
     st.aimDynamicY = nil
     st.lostCoastTimer = 0
     st.userPriority = 0
+    st.prevErrorMag = nil
+    st.overshootTimer = 0
+    st.anticipateX = 0; st.anticipateY = 0
   end
   if math.abs(fx) > 0.001 or math.abs(fy) > 0.001 then
     sendMouseRelative(fx, fy)
   end
-end
-
-local EDIT_VARS = {
-  {label="SPRING_TAU",       step=0.005,min=0.015,max=0.20,  fmt="%.3f", get=function() return C.SPRING_TAU end, set=function(v) C.SPRING_TAU=v end},
-  {label="SPRING_GAIN",      step=0.05, min=0.1,  max=2.0,   fmt="%.2f", get=function() return C.SPRING_OUTPUT_GAIN end, set=function(v) C.SPRING_OUTPUT_GAIN=v end},
-  {label="DEADZONE_RADIUS",  step=0.5,  min=0,    max=30,    fmt="%.1f", get=function() return C.DEADZONE_RADIUS end, set=function(v) C.DEADZONE_RADIUS=v end},
-  {label="DEADZONE_MIN",     step=0.02, min=0,    max=1.0,   fmt="%.2f", get=function() return C.DEADZONE_MIN_SCALE end, set=function(v) C.DEADZONE_MIN_SCALE=v end},
-  {label="AIM_PROX_R_MULT",  step=0.05, min=0.5,  max=4.0,   fmt="%.2f", get=function() return C.AIM_PROX_RADIUS_MULT end, set=function(v) C.AIM_PROX_RADIUS_MULT=v end},
-  {label="AIM_CENTER_FALL",  step=0.02, min=0,    max=1.0,   fmt="%.2f", get=function() return C.AIM_CENTER_FALLBACK end, set=function(v) C.AIM_CENTER_FALLBACK=v end},
-  {label="AIM_HEAD_Y",       step=0.05, min=-1.0, max=2.0,   fmt="%.2f", get=function() return C.AIM_HEAD_OFFSET_Y end, set=function(v) C.AIM_HEAD_OFFSET_Y=v end},
-  {label="AIM_FOOT_Y",       step=0.05, min=-5.0, max=0.5,   fmt="%.2f", get=function() return C.AIM_FOOT_OFFSET_Y end, set=function(v) C.AIM_FOOT_OFFSET_Y=v end},
-  {label="LOST_FADE_TAU",    step=0.01, min=0.05, max=1.0,   fmt="%.2f", get=function() return C.TAU_LOST end, set=function(v) C.TAU_LOST=v end},
-  {label="LOST_DAMP",        step=0.05, min=0.1,  max=5.0,   fmt="%.2f", get=function() return C.LOST_SPRING_DAMP end, set=function(v) C.LOST_SPRING_DAMP=v end},
-  {label="LOST_DECAY_TAU",   step=0.01, min=0.02, max=0.5,   fmt="%.2f", get=function() return C.LOST_DECAY_TAU end, set=function(v) C.LOST_DECAY_TAU=v end},
-  {label="RELEASE_MAX_PX",   step=1,    min=5,    max=80,    fmt="%.0f", get=function() return C.RELEASE_MAX_PIXELS end, set=function(v) C.RELEASE_MAX_PIXELS=v end},
-  {label="USER_MOVE_VEL",    step=25,   min=100,  max=1500,  fmt="%.0f", get=function() return C.USER_MOVE_VEL_THRESH end, set=function(v) C.USER_MOVE_VEL_THRESH=v end},
-  {label="USER_YANK_VEL",    step=50,   min=500,  max=2500,  fmt="%.0f", get=function() return C.USER_YANK_VEL_THRESH end, set=function(v) C.USER_YANK_VEL_THRESH=v end},
-  {label="TARGET_GRACE",     step=0.02, min=0,    max=1.0,   fmt="%.2f", get=function() return C.TARGET_GRACE_TIME end, set=function(v) C.TARGET_GRACE_TIME=v end},
-  {label="STICKY_FOV",       step=0.05, min=0,    max=2.0,   fmt="%.2f", get=function() return C.STICKY_OUT_OF_FOV_TIME end, set=function(v) C.STICKY_OUT_OF_FOV_TIME=v end},
-  {label="PRED_LEAD",        step=0.05, min=0,    max=2.0,   fmt="%.2f", get=function() return C.PRED_LEAD end, set=function(v) C.PRED_LEAD=v end},
-  {label="EDGE_THIN",        step=0.05, min=0.05, max=2.0,   fmt="%.2f", get=function() return C.EDGE_THIN end, set=function(v) C.EDGE_THIN=v end},
-  {label="MAX_THIN",         step=1,    min=0,    max=5,     fmt="%.0f", get=function() return C.MAX_THIN end, set=function(v) C.MAX_THIN=v end},
-  {label="FOV",              step=5,    min=10,   max=500,   fmt="%.0f", get=function() return C.FOV end, set=function(v) C.FOV=v end},
-  {label="WALL_THIN_MAX",    step=0.05, min=0,    max=3.0,   fmt="%.2f", get=function() return C.WALL_THIN_MAX_THICK end, set=function(v) C.WALL_THIN_MAX_THICK=v end},
-  {label="WALL_TRANSP_MIN",  step=0.05, min=0,    max=1.0,   fmt="%.2f", get=function() return C.WALL_TRANSP_MIN end, set=function(v) C.WALL_TRANSP_MIN=v end},
-  {label="SRC_GAME_THRESH",  step=0.02, min=0,    max=1.0,   fmt="%.2f", get=function() return C.SRC_GAME_THRESH end, set=function(v) C.SRC_GAME_THRESH=v end},
-  {label="SRC_SENS_YAW",     step=0.01, min=0.001,max=1.0,   fmt="%.3f", get=function() return st.sensYaw end, set=function(v) st.sensYaw=v end},
-  {label="USER_PRIO_MIN",    step=1,    min=5,    max=100,   fmt="%.0f", get=function() return C.USER_INPUT_PRIORITY_MIN_SPEED end, set=function(v) C.USER_INPUT_PRIORITY_MIN_SPEED=v end},
-  {label="USER_PRIO_MAX",    step=5,    min=50,   max=500,   fmt="%.0f", get=function() return C.USER_INPUT_PRIORITY_MAX_SPEED end, set=function(v) C.USER_INPUT_PRIORITY_MAX_SPEED=v end},
-  {label="USER_PRIO_OVR",    step=0.01, min=0.0,  max=0.5,   fmt="%.2f", get=function() return C.USER_INPUT_PRIORITY_OVERRIDE end, set=function(v) C.USER_INPUT_PRIORITY_OVERRIDE=v end},
-  {label="RECOIL_ENABLE",    step=1,    min=0,    max=1,     fmt="%.0f", get=function() return C.RECOIL_ENABLE and 1 or 0 end, set=function(v) C.RECOIL_ENABLE = (v >= 0.5) end},
-  {label="RECOIL_ALWAYS",    step=1,    min=0,    max=1,     fmt="%.0f", get=function() return C.RECOIL_ALWAYS_ACTIVE and 1 or 0 end, set=function(v) C.RECOIL_ALWAYS_ACTIVE = (v >= 0.5) end},
-  {label="RECOIL_STR_V",     step=0.1,  min=0.1,  max=5.0,   fmt="%.1f", get=function() return C.RECOIL_STRENGTH_VERT end, set=function(v) C.RECOIL_STRENGTH_VERT=v end},
-  {label="RECOIL_STR_H",     step=0.1,  min=0.0,  max=5.0,   fmt="%.1f", get=function() return C.RECOIL_STRENGTH_HORZ end, set=function(v) C.RECOIL_STRENGTH_HORZ=v end},
-  {label="RECOIL_PX_FRAME",  step=0.1,  min=0.1,  max=10.0,  fmt="%.1f", get=function() return C.RECOIL_PIXEL_PER_FRAME end, set=function(v) C.RECOIL_PIXEL_PER_FRAME=v end},
-  {label="RECOIL_RAMP_UP",   step=0.01, min=0.0,  max=1.0,   fmt="%.2f", get=function() return C.RECOIL_RAMP_UP end, set=function(v) C.RECOIL_RAMP_UP=v end},
-  {label="RECOIL_HOLD_MAX",  step=0.1,  min=0.1,  max=10.0,  fmt="%.1f", get=function() return C.RECOIL_HOLD_MAX end, set=function(v) C.RECOIL_HOLD_MAX=v end},
-  {label="RECOIL_CAM_P_GAIN",step=0.05, min=0.1,  max=3.0,   fmt="%.2f", get=function() return C.RECOIL_CAM_PITCH_GAIN end, set=function(v) C.RECOIL_CAM_PITCH_GAIN=v end},
-  {label="RECOIL_CAM_Y_GAIN",step=0.05, min=0.0,  max=3.0,   fmt="%.2f", get=function() return C.RECOIL_CAM_YAW_GAIN end, set=function(v) C.RECOIL_CAM_YAW_GAIN=v end},
-  {label="RECOIL_FIXED_Y",   step=0.1,  min=0.0,  max=20.0,  fmt="%.1f", get=function() return C.RECOIL_FIXED_Y end, set=function(v) C.RECOIL_FIXED_Y=v end},
-  {label="RECOIL_FIXED_X",   step=0.1,  min=-10.0,max=10.0,  fmt="%.1f", get=function() return C.RECOIL_FIXED_X end, set=function(v) C.RECOIL_FIXED_X=v end},
-  {label="RECOIL_USE_CAM",   step=1,    min=0,    max=1,     fmt="%.0f", get=function() return C.RECOIL_USE_CAM_DELTA and 1 or 0 end, set=function(v) C.RECOIL_USE_CAM_DELTA = (v >= 0.5) end},
-  {label="RECOIL_USE_FIX",   step=1,    min=0,    max=1,     fmt="%.0f", get=function() return C.RECOIL_USE_FIXED_MOUSEREL and 1 or 0 end, set=function(v) C.RECOIL_USE_FIXED_MOUSEREL = (v >= 0.5) end},
-}
-
-local function buildHUD()
-  local gui = Instance.new("ScreenGui")
-  gui.Name = "AA_HUD"
-  gui.ResetOnSpawn = false
-  gui.IgnoreGuiInset = true
-  gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-  gui.Parent = player:WaitForChild("PlayerGui")
-
-  local frame = Instance.new("Frame")
-  frame.Name = "Panel"
-  frame.AnchorPoint = Vector2.new(0, 0.5)
-  frame.Position = UDim2.new(0, 6, 0.5, 0)
-  frame.Size = UDim2.new(0, 220, 0, 120)
-  frame.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
-  frame.BackgroundTransparency = 0.35
-  frame.BorderSizePixel = 0
-  frame.Parent = gui
-  local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, 4); corner.Parent = frame
-  local stroke = Instance.new("UIStroke")
-  stroke.Color = Color3.fromRGB(80, 220, 140); stroke.Thickness = 1; stroke.Transparency = 0.4; stroke.Parent = frame
-
-  local titleBar = Instance.new("Frame")
-  titleBar.BackgroundTransparency = 1
-  titleBar.Size = UDim2.new(1, -6, 0, 12)
-  titleBar.Position = UDim2.new(0, 3, 0, 1)
-  titleBar.Parent = frame
-
-  local title = Instance.new("TextLabel")
-  title.BackgroundTransparency = 1
-  title.Size = UDim2.new(1, -16, 1, 0)
-  title.Position = UDim2.new(0, 2, 0, 0)
-  title.Font = Enum.Font.Code; title.TextSize = 9
-  title.TextXAlignment = Enum.TextXAlignment.Left
-  title.TextColor3 = Color3.fromRGB(120, 255, 180)
-  title.Text = "AA v3.2"
-  title.Parent = titleBar
-
-  local toggleBtn = Instance.new("TextButton")
-  toggleBtn.Size = UDim2.new(0, 12, 0, 10)
-  toggleBtn.Position = UDim2.new(1, -12, 0, 1)
-  toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-  toggleBtn.BorderSizePixel = 0
-  toggleBtn.Font = Enum.Font.Code; toggleBtn.TextSize = 9
-  toggleBtn.TextColor3 = Color3.fromRGB(150, 200, 255)
-  toggleBtn.Text = "V"
-  toggleBtn.AutoButtonColor = true
-  toggleBtn.Parent = titleBar
-  local tbc = Instance.new("UICorner"); tbc.CornerRadius = UDim.new(0, 2); tbc.Parent = toggleBtn
-
-  local label = Instance.new("TextLabel")
-  label.Name = "Text"
-  label.BackgroundTransparency = 1
-  label.Size = UDim2.new(1, -8, 1, -16)
-  label.Position = UDim2.new(0, 4, 0, 14)
-  label.Font = Enum.Font.Code; label.TextSize = 8
-  label.TextXAlignment = Enum.TextXAlignment.Left
-  label.TextYAlignment = Enum.TextYAlignment.Top
-  label.TextColor3 = Color3.fromRGB(220, 255, 230)
-  label.Text = ""
-  label.Parent = frame
-
-  local editor = Instance.new("Frame")
-  editor.Name = "Editor"
-  editor.AnchorPoint = Vector2.new(0, 0.5)
-  editor.Position = UDim2.new(0, 232, 0.5, 0)
-  editor.Size = UDim2.new(0, 190, 0, 480)
-  editor.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
-  editor.BackgroundTransparency = 0.35
-  editor.BorderSizePixel = 0
-  editor.Parent = gui
-  local corner2 = Instance.new("UICorner"); corner2.CornerRadius = UDim.new(0, 4); corner2.Parent = editor
-  local stroke2 = Instance.new("UIStroke")
-  stroke2.Color = Color3.fromRGB(150, 180, 255); stroke2.Thickness = 1; stroke2.Transparency = 0.4; stroke2.Parent = editor
-
-  local etitle = Instance.new("TextLabel")
-  etitle.BackgroundTransparency = 1
-  etitle.Size = UDim2.new(1, -8, 0, 10)
-  etitle.Position = UDim2.new(0, 4, 0, 1)
-  etitle.Font = Enum.Font.Code; etitle.TextSize = 9
-  etitle.TextXAlignment = Enum.TextXAlignment.Left
-  etitle.TextColor3 = Color3.fromRGB(150, 200, 255)
-  etitle.Text = "TUNE"
-  etitle.Parent = editor
-
-  local scroll = Instance.new("ScrollingFrame")
-  scroll.BackgroundTransparency = 1
-  scroll.BorderSizePixel = 0
-  scroll.Position = UDim2.new(0, 1, 0, 12)
-  scroll.Size = UDim2.new(1, -2, 1, -14)
-  scroll.CanvasSize = UDim2.new(0, 0, 0, #EDIT_VARS * 15 + 4)
-  scroll.ScrollBarThickness = 3
-  scroll.Parent = editor
-
-  local valLabels = {}
-  for i, v in ipairs(EDIT_VARS) do
-    local row = Instance.new("Frame")
-    row.BackgroundTransparency = 1
-    row.Position = UDim2.new(0, 0, 0, (i - 1) * 15)
-    row.Size = UDim2.new(1, 0, 0, 13)
-    row.Parent = scroll
-
-    local nameL = Instance.new("TextLabel")
-    nameL.BackgroundTransparency = 1
-    nameL.Position = UDim2.new(0, 2, 0, 0)
-    nameL.Size = UDim2.new(0, 86, 1, 0)
-    nameL.Font = Enum.Font.Code; nameL.TextSize = 7
-    nameL.TextXAlignment = Enum.TextXAlignment.Left
-    nameL.TextColor3 = Color3.fromRGB(200, 210, 230)
-    nameL.Text = v.label
-    nameL.Parent = row
-
-    local minus = Instance.new("TextButton")
-    minus.Size = UDim2.new(0, 12, 0, 11)
-    minus.Position = UDim2.new(0, 88, 0, 1)
-    minus.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-    minus.BorderSizePixel = 0
-    minus.Font = Enum.Font.Code; minus.TextSize = 9
-    minus.TextColor3 = Color3.fromRGB(255, 160, 160)
-    minus.Text = "-"
-    minus.AutoButtonColor = true
-    minus.Parent = row
-    local mc = Instance.new("UICorner"); mc.CornerRadius = UDim.new(0, 2); mc.Parent = minus
-
-    local valL = Instance.new("TextLabel")
-    valL.BackgroundTransparency = 1
-    valL.Position = UDim2.new(0, 102, 0, 0)
-    valL.Size = UDim2.new(0, 40, 1, 0)
-    valL.Font = Enum.Font.Code; valL.TextSize = 7
-    valL.TextColor3 = Color3.fromRGB(240, 255, 200)
-    valL.Text = string.format(v.fmt, v.get())
-    valL.Parent = row
-
-    local plus = Instance.new("TextButton")
-    plus.Size = UDim2.new(0, 12, 0, 11)
-    plus.Position = UDim2.new(0, 144, 0, 1)
-    plus.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-    plus.BorderSizePixel = 0
-    plus.Font = Enum.Font.Code; plus.TextSize = 9
-    plus.TextColor3 = Color3.fromRGB(160, 255, 160)
-    plus.Text = "+"
-    plus.AutoButtonColor = true
-    plus.Parent = row
-    local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(0, 2); pc.Parent = row
-
-    valLabels[i] = {label = valL, var = v}
-
-    minus.MouseButton1Click:Connect(function()
-      local nv = v.get() - v.step
-      if nv < v.min then nv = v.min end
-      v.set(nv)
-      valL.Text = string.format(v.fmt, v.get())
-    end)
-    plus.MouseButton1Click:Connect(function()
-      local nv = v.get() + v.step
-      if nv > v.max then nv = v.max end
-      v.set(nv)
-      valL.Text = string.format(v.fmt, v.get())
-    end)
-  end
-
-  toggleBtn.MouseButton1Click:Connect(function()
-    st.editorVisible = not st.editorVisible
-    editor.Visible = st.editorVisible
-    toggleBtn.Text = st.editorVisible and "V" or ">"
-  end)
-
-  return gui, label, stroke, valLabels
-end
-
-local hudGui, hudLabel, hudStroke, hudVals = buildHUD()
-
-local hudState = { lastUpdate = 0 }
-
-local function buildHudMessages()
-  local msgs = {}
-  local mouseS = st.mouseSpeedSmooth or 0
-  local mouseR = st.mouseSpeedRaw or 0
-  local moving = mouseS > C.MANUAL_DEADZONE
-
-  if st.target and st.targetChar and st.targetChar.Parent then
-    local name = st.targetChar.Name
-    if #name > 12 then name = string.sub(name, 1, 12) end
-    local dist = math.floor(st.targetWorldD or 0)
-    local part = st.aimPointName or "?"
-    local vis = st.aimPointVisible and "" or " [BLK]"
-    local tp = st.tpActive > 0.05 and string.format(" [TP%.0f%%]", st.tpActive * 100) or ""
-    local up = st.userPriority > 0.05 and string.format(" [UP%d%%]", math.floor(st.userPriority * 100)) or ""
-    local rc = st.recoilActive and " [RC]" or ""
-    table.insert(msgs, string.format("%s %dst>%s%s%s%s%s", name, dist, part, vis, tp, up, rc))
-  elseif st.lostFade > 0.02 then
-    table.insert(msgs, string.format("FADE %.2f", st.lostFade))
-  else
-    table.insert(msgs, "IDLE")
-  end
-
-  table.insert(msgs, string.format("M%s r=%.0f s=%.0f", moving and "V" or "S", mouseR, mouseS))
-  table.insert(msgs, string.format("w=%.0f z=%.2f", st.springOmega or 0, st.zetaSmooth or 0))
-  table.insert(msgs, string.format("tV=%.1f c=%.2f", st.lastTargetVelMag or 0, st.predConfidence or 1.0))
-  table.insert(msgs, string.format("sens=%.3f g=%.2f p=%.2f", st.sensYaw or 0, st.gameSignalSmooth or 0, st.userPriority or 0))
-  if st.recoilActive then
-    table.insert(msgs, string.format("RC cY=%.2f cX=%.2f", st.recoilCompY or 0, st.recoilCompX or 0))
-  end
-  return msgs
 end
 
 local connB = UserInputService.InputBegan:Connect(function(i, gp)
@@ -2908,11 +2820,6 @@ local connB = UserInputService.InputBegan:Connect(function(i, gp)
     else
       st.holding = st.m1 or st.m2
     end
-    return
-  end
-  if i.KeyCode == C.HUD_TOGGLE_KEY then
-    st.hudVisible = not st.hudVisible
-    hudGui.Enabled = st.hudVisible
     return
   end
   if gp then return end
@@ -2947,6 +2854,8 @@ local connB = UserInputService.InputBegan:Connect(function(i, gp)
       st.aimPointNotVisibleSince = 0
       st.aimDynamicY = nil
       st.lostCoastTimer = 0
+      st.prevErrorMag = nil
+      st.overshootTimer = 0
     end
   end
   if i.UserInputType == Enum.UserInputType.MouseButton1 and C.CLICK_L then
@@ -2980,6 +2889,8 @@ local connB = UserInputService.InputBegan:Connect(function(i, gp)
       st.aimPointNotVisibleSince = 0
       st.aimDynamicY = nil
       st.lostCoastTimer = 0
+      st.prevErrorMag = nil
+      st.overshootTimer = 0
     end
   end
 end)
@@ -3005,6 +2916,8 @@ local connE = UserInputService.InputEnded:Connect(function(i)
       st.userMoveInf = 0
       st.userPriority = 0
       st.aimDynamicY = nil
+      st.prevErrorMag = nil
+      st.overshootTimer = 0
     end
   end
   if i.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -3026,6 +2939,8 @@ local connE = UserInputService.InputEnded:Connect(function(i)
       st.userMoveInf = 0
       st.userPriority = 0
       st.aimDynamicY = nil
+      st.prevErrorMag = nil
+      st.overshootTimer = 0
     end
   end
 end)
@@ -3091,29 +3006,6 @@ local connR = RunService.RenderStepped:Connect(function(dt)
   updateUserMove(dt)
   if st.holding then updateUserYank(dt) end
 
-  if not st.hudVisible then
-    hudGui.Enabled = false
-  else
-    hudGui.Enabled = false
-    hudState.lastUpdate = hudState.lastUpdate + dt
-    if hudState.lastUpdate > 0.05 then
-      hudState.lastUpdate = 0
-      hudLabel.Text = table.concat(buildHudMessages(), "\n")
-      if st.target and st.targetChar and st.targetChar.Parent and st.aimPointVisible then
-        hudStroke.Color = Color3.fromRGB(80, 255, 140)
-      elseif st.target and not st.aimPointVisible then
-        hudStroke.Color = Color3.fromRGB(255, 120, 120)
-      elseif st.lostFade > 0.02 then
-        hudStroke.Color = Color3.fromRGB(255, 200, 60)
-      else
-        hudStroke.Color = Color3.fromRGB(120, 140, 180)
-      end
-      for i, e in ipairs(hudVals) do
-        e.label.Text = string.format(e.var.fmt, e.var.get())
-      end
-    end
-  end
-
   if not st.holding then
     st.manualInf = 0
     st.manualDownInf = 0
@@ -3153,6 +3045,10 @@ local connR = RunService.RenderStepped:Connect(function(dt)
     st.aimPointNotVisibleSince = 0
     st.aimDynamicY = nil
     st.lostCoastTimer = 0
+    st.prevErrorMag = nil
+    st.overshootTimer = 0
+    st.anticipateX = 0
+    st.anticipateY = 0
     return
   end
 
@@ -3206,4 +3102,4 @@ _G.AA = _G.AA or {}
 _G.AA.conns = {connR, connB, connE}
 _G.AA.user = USER
 _G.AA.notis = false
-_G.AA.hud = hudGui
+-- HUD eliminado a pedido
