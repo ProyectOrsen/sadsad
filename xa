@@ -187,6 +187,12 @@ local C = {
   TARGET_SPEED_BOOST_MAX = 45.0, TARGET_SPEED_BOOST_AMT = 0.70,
   PROXIMITY_ADAPT_ENABLE = true, PROXIMITY_BOOST_RANGE = 35.0, PROXIMITY_BOOST_AMT = 0.55,
 
+  -- NUEVO: amortiguación de llegada, frena cuando ya está encima
+  ARRIVAL_DAMP_ENABLE = true, ARRIVAL_DAMP_RANGE = 9.0, ARRIVAL_DAMP_STR = 0.60,
+  -- NUEVO: micro-adjust que solo actúa cuando settled
+  MICRO_ADJUST_ENABLE = true, MICRO_ADJUST_RANGE = 6.0,
+  MICRO_ADJUST_GAIN_X = 0.09, MICRO_ADJUST_GAIN_Y = 0.07,
+
   SURFACE_PREDICT_ENABLE = true, SURFACE_PREDICT_MARGIN = 1.5,
   SURFACE_PREDICT_MAX_CAST = 60.0, SURFACE_PREDICT_VEL_MIN = 5.0,
   SURFACE_PREDICT_GROUND_ENABLE = true, SURFACE_PREDICT_GROUND_MARGIN = 1.0,
@@ -199,7 +205,7 @@ local C = {
   MICRO_PAUSE_CHANCE = 0.15, MICRO_PAUSE_SCALE = 0.35,
 
   CLOSE_SNAP_ENABLE = true, CLOSE_SNAP_RANGE = 12.0,
-  CLOSE_SNAP_K_MULT = 1.40, CLOSE_SNAP_OM_MULT = 1.18,
+  CLOSE_SNAP_K_MULT = 1.12, CLOSE_SNAP_OM_MULT = 1.06,
 
   SPRING_SPEED_MOD_AMP = 0.20, SPRING_SPEED_MOD_FREQ = 1.20,
   SPRING_ZETA_MOD_AMP = 0.10, SPRING_ZETA_MOD_FREQ = 1.50,
@@ -223,10 +229,10 @@ local C = {
   SMART_FLICK_MAX_LEAD_RATIO = 0.60, SMART_FLICK_MAX_MAG = 75.0,
   FLICK_LOCK_SHARED = true,
 
-  RETURN_PULSE_ENABLE = true, RETURN_PULSE_MIN_ERR = 8.0, RETURN_PULSE_PAUSE = 0.055,
+  RETURN_PULSE_ENABLE = true, RETURN_PULSE_MIN_ERR = 15.0, RETURN_PULSE_PAUSE = 0.055,
   RETURN_PULSE_DURATION = 0.080, RETURN_PULSE_GAIN = 0.40, RETURN_PULSE_SPEED = 14.0,
   RETURN_PULSE_COOLDOWN = 0.20, RETURN_PULSE_PAUSE_SCALE = 0.15,
-  RETURN_PULSE_HIT_RANGE = 3.0, RETURN_PULSE_HIT_WINDOW = 0.20,
+  RETURN_PULSE_HIT_RANGE = 2.0, RETURN_PULSE_HIT_WINDOW = 0.20,
   RETURN_PULSE_NEAR_SKIP = 5.0, RETURN_PULSE_NEAR_FADE = 20.0,
 
   HUMANIZE_ENABLE = true, HUMAN_CURVE_AMP = 1.60, HUMAN_CURVE_FREQ = 0.55,
@@ -241,7 +247,7 @@ local C = {
   DIR_REACTION_DELAY = 0.220, DIR_LOOKAHEAD_ENABLE = true,
   DIR_LOOKAHEAD_TIME = 0.10, DIR_LOOKAHEAD_MAX_ERR = 40.0, DIR_LOOKAHEAD_GAIN = 0.25,
 
-  PULSE_ENABLE = true, PULSE_MIN = 6.0, PULSE_MAX = 30.0, PULSE_GAIN = 0.05,
+  PULSE_ENABLE = true, PULSE_MIN = 14.0, PULSE_MAX = 30.0, PULSE_GAIN = 0.05,
   PULSE_FREQ = 2.5, PULSE_RAMP = 0.070, PULSE_SPEED_MULT = 20.0,
   PULSE_RAMP_JITTER = 0.40, PULSE_SPEED_MULT_JITTER = 0.30,
   PULSE_MAG_JITTER = 0.30, PULSE_CURVE_ASYM = 0.25,
@@ -269,13 +275,13 @@ local C = {
   VERT_UP_OMEGA_MULT = 1.35, VERT_DOWN_OMEGA_MULT = 0.95,
   VERT_EASE_ENABLE = true, VERT_EASE_FAR_DIST = 120.0, VERT_EASE_NEAR_DIST = 6.0,
   VERT_EASE_FAR_MULT = 0.95, VERT_EASE_MID_MULT = 1.05, VERT_EASE_NEAR_MULT = 0.95,
-  VERT_MICRO_AMP = 0.055, VERT_MICRO_FREQ_BASE = 4.2, VERT_MICRO_FREQ_MOD = 0.30,
+  VERT_MICRO_AMP = 0.032, VERT_MICRO_FREQ_BASE = 4.2, VERT_MICRO_FREQ_MOD = 0.30,
   VERT_MICRO_RANGE = 12.0, VERT_ERRCAP_MULT = 0.85, VERT_VELCAP_MULT = 0.90,
 
-  TREMOR_AMP = 0.060, TREMOR_FREQ = 9.5, TREMOR_FREQ_MOD_AMP = 0.15,
+  TREMOR_AMP = 0.042, TREMOR_FREQ = 9.5, TREMOR_FREQ_MOD_AMP = 0.15,
   TREMOR_AMP_MOD_SPEED = 0.6, TREMOR_ACTIVE_RANGE = 60.0, TREMOR_NEAR_SCALE = 10.0,
 
-  SACCADE_AMP = 0.45, SACCADE_X_SCALE = 0.5, SACCADE_MIN_INTERVAL = 0.60,
+  SACCADE_AMP = 0.26, SACCADE_X_SCALE = 0.5, SACCADE_MIN_INTERVAL = 0.60,
   SACCADE_MAX_INTERVAL = 2.00, SACCADE_DECAY_TAU = 0.08, SACCADE_ACTIVE_RANGE = 45.0,
   SACCADE_CHANCE = 0.55, SACCADE_NEAR_SCALE = 10.0,
 
@@ -379,21 +385,21 @@ local C = {
   SMART_SWITCH_NEAR_BLEND = 0.200, SMART_SWITCH_FAR_BLEND = 0.140,
   SMART_SWITCH_PRESERVE_VEL = 0.0, SMART_SWITCH_KEEP_ACQ = true,
 
-  MICRO_CORRECT_ENABLE = true, MICRO_CORRECT_RANGE = 6.0, MICRO_CORRECT_AMP = 0.14,
-  MICRO_CORRECT_FREQ = 2.6,
+  MICRO_CORRECT_ENABLE = true, MICRO_CORRECT_RANGE = 6.0, MICRO_CORRECT_AMP = 0.10,
+  MICRO_CORRECT_FREQ = 2.2,
 
   BLINK_ENABLE = true, BLINK_MIN_INTERVAL = 1.8, BLINK_MAX_INTERVAL = 4.5,
   BLINK_CHANCE = 0.35, BLINK_DURATION = 0.055, BLINK_SCALE = 0.72,
 
-  OVERSHOOT_SETTLE_ENABLE = true, OVERSHOOT_SETTLE_RANGE = 22.0,
-  OVERSHOOT_SETTLE_TIME = 0.140, OVERSHOOT_SETTLE_AMP = 0.16,
+  OVERSHOOT_SETTLE_ENABLE = true, OVERSHOOT_SETTLE_RANGE = 12.0,
+  OVERSHOOT_SETTLE_TIME = 0.140, OVERSHOOT_SETTLE_AMP = 0.05,
 
-  HANDSHAKE_ENABLE = true, HANDSHAKE_AMP = 0.045, HANDSHAKE_FREQ = 7.2,
+  HANDSHAKE_ENABLE = true, HANDSHAKE_AMP = 0.030, HANDSHAKE_FREQ = 7.2,
 
   FATIGUE_ENABLE = true, FATIGUE_RATE = 0.045, FATIGUE_DECAY = 0.55,
-  FATIGUE_DRIFT_AMP = 0.35,
+  FATIGUE_DRIFT_AMP = 0.22,
 
-  ANTICIPATE_ENABLE = true, ANTICIPATE_GAIN = 0.18, ANTICIPATE_TAU = 0.180,
+  ANTICIPATE_ENABLE = true, ANTICIPATE_GAIN = 0.06, ANTICIPATE_TAU = 0.180,
 }
 
 local st = {
@@ -501,6 +507,7 @@ local st = {
   handShakeT = math.random() * 100,
   fatigueT = math.random() * 100, fatigueLevel = 0,
   anticipateX = 0, anticipateY = 0,
+  smoothErrorX = 0, smoothErrorY = 0,
 }
 
 local function clamp(v, lo, hi)
@@ -1177,6 +1184,8 @@ local function acquireTarget(chosen, wasExisting, isNearSwitch, cursor)
   st.overshootTimer = 0
   st.anticipateX = 0
   st.anticipateY = 0
+  st.smoothErrorX = 0
+  st.smoothErrorY = 0
   rerollAll()
   if wasExisting and st.aimScreenInit then
     st.switchFromX = curX
@@ -1718,7 +1727,7 @@ local function updateVerticalMicro(dt, eMag, errorY)
   local fMod = 1 + n1(st.vertMicroT * 0.18, 120) * C.VERT_MICRO_FREQ_MOD
   local aMod = 1 + n1(st.vertMicroT * 0.42, 121) * 0.45
   local m = fbm1(st.vertMicroT * C.VERT_MICRO_FREQ_BASE * fMod, 122, 3) * C.VERT_MICRO_AMP * rangeT * aMod
-  if errorY < -2 then m = m * 1.35 end
+  -- eliminar amplificación de errorY negativo (causaba jalones hacia arriba)
   return m
 end
 
@@ -1776,8 +1785,6 @@ local function updateMicroPause(dt)
   end
 end
 
--- ===== NUEVAS FUNCIONES DE REALISMO =====
-
 local function updateMicroCorrect(dt, eMag)
   if not C.MICRO_CORRECT_ENABLE then return 0, 0 end
   if eMag > C.MICRO_CORRECT_RANGE then return 0, 0 end
@@ -1815,7 +1822,7 @@ local function updateOvershoot(dt, errorX, errorY, eMag)
     local amp = C.OVERSHOOT_SETTLE_AMP * math.min(eMag / C.OVERSHOOT_SETTLE_RANGE, 1.0)
     return st.overshootDirX * amp * curve, st.overshootDirY * amp * curve
   end
-  if st.prevErrorMag and st.prevErrorMag > 6.0 and eMag < 1.5 then
+  if st.prevErrorMag and st.prevErrorMag > 10.0 and eMag < 2.0 then
     local prevNormX = st.prevErrorX / math.max(st.prevErrorMag, 0.001)
     local prevNormY = st.prevErrorY / math.max(st.prevErrorMag, 0.001)
     st.overshootDirX = -prevNormX
@@ -1858,7 +1865,7 @@ end
 local function updateAnticipate(dt, errorX, errorY, eMag)
   if not C.ANTICIPATE_ENABLE then return 0, 0 end
   local targetAX, targetAY = 0, 0
-  if eMag > 3.0 and eMag < 60.0 then
+  if eMag > 8.0 and eMag < 60.0 then
     local nx, ny = errorX / eMag, errorY / eMag
     targetAX = nx * C.ANTICIPATE_GAIN
     targetAY = ny * C.ANTICIPATE_GAIN
@@ -1905,6 +1912,8 @@ end
 
 local function updateSmartFlick(dt, cursor, errorX, errorY, eMag)
   if not C.SMART_FLICK_ENABLE then return end
+  -- NUEVO: no disparar smart flick si ya está cerca (evita jalones raros)
+  if eMag < 16.0 then return end
   if st.smartFlickCooldown > 0 then st.smartFlickCooldown = st.smartFlickCooldown - dt end
   if st.smartFlickTimer > 0 then
     st.smartFlickTimer = st.smartFlickTimer - dt
@@ -1972,7 +1981,6 @@ local function updateSmartFlick(dt, cursor, errorX, errorY, eMag)
   local endFy = parkY - cursor.Y
   local endMag = vlen(endFx, endFy)
   if startMag < 3 or endMag < 3 then return end
-  -- cap: nunca sobrepasar SMART_FLICK_MAX_MAG
   if endMag > C.SMART_FLICK_MAX_MAG then
     local s = C.SMART_FLICK_MAX_MAG / endMag
     endFx = endFx * s
@@ -2000,6 +2008,8 @@ local function updateReturnPulse(dt, errorX, errorY)
   if not C.RETURN_PULSE_ENABLE then st.recentHitTime = nil; return end
   if st.returnCooldown > 0 then st.returnCooldown = st.returnCooldown - dt end
   local eMag = vlen(errorX, errorY)
+  -- NUEVO: no disparar si está cerca
+  if eMag < 8.0 then st.recentHitTime = nil; return end
   local now = tick()
   if eMag < C.RETURN_PULSE_HIT_RANGE then st.recentHitTime = now end
   local overshoot = false
@@ -2247,6 +2257,14 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   local manualCutRaw = computeManualCut()
   st.cutSmooth = expDecay(st.cutSmooth, manualCutRaw, C.MANUAL_CUT_SMOOTH_TAU, dt)
   local manualCut = st.cutSmooth
+
+  -- ===== NEAR TARGET DETECTION =====
+  -- Cuando el error es pequeño, sentimos que ya llegamos y hacemos micro-adjustes suaves
+  local nearRange = 10.0
+  local nearT = 1 - clamp(eMag / nearRange, 0, 1)
+  nearT = nearT * nearT * (3 - 2 * nearT)  -- smoothstep
+  local farT = 1 - nearT
+
   if C.DIR_LOOKAHEAD_ENABLE and st.targetChar then
     local tvX = st.predVelSmoothX or 0
     local tvZ = st.predVelSmoothZ or 0
@@ -2275,9 +2293,11 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
         useDirX, useDirZ = ndx, ndz
         if st.dirChangePending then st.dirChangePending = false end
       end
+      -- Near target, desactivamos lookahead (era causante de jalones cuando ya llegaste)
       local lookaheadDist = clamp(C.DIR_LOOKAHEAD_TIME * tvMag, 0, C.DIR_LOOKAHEAD_MAX_ERR)
-      local lx = useDirX * lookaheadDist * C.DIR_LOOKAHEAD_GAIN
-      local lz = useDirZ * lookaheadDist * C.DIR_LOOKAHEAD_GAIN
+      local laGain = C.DIR_LOOKAHEAD_GAIN * farT
+      local lx = useDirX * lookaheadDist * laGain
+      local lz = useDirZ * lookaheadDist * laGain
       if camera and st.targetWorldD and st.targetWorldD > 0 then
         local vp = camera.ViewportSize
         local fov = math.rad(camera.FieldOfView)
@@ -2294,15 +2314,16 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     if eMag > 0.001 then eNormX = errorX / eMag; eNormY = errorY / eMag end
     local perpX, perpY = -eNormY, eNormX
     local curveMul = clamp(eMag / 30.0, 0.2, 1.0)
-    local curveAmt = fbm1(st.humanCurveT * C.HUMAN_CURVE_FREQ, 200, 3) * C.HUMAN_CURVE_AMP * curveMul
+    local curveAmt = fbm1(st.humanCurveT * C.HUMAN_CURVE_FREQ, 200, 3) * C.HUMAN_CURVE_AMP * curveMul * farT
     errorX = errorX + perpX * curveAmt
     errorY = errorY + perpY * curveAmt
     if eMag < C.HUMAN_WOBBLE_RANGE then
       st.humanWobbleT = st.humanWobbleT + dt
       local wobbleScale = 1 - (eMag / C.HUMAN_WOBBLE_RANGE)
       wobbleScale = wobbleScale * wobbleScale
-      local wobX = math.sin(st.humanWobbleT * C.HUMAN_WOBBLE_FREQ * 2 * math.pi) * C.HUMAN_WOBBLE_AMP * wobbleScale
-      local wobY = math.cos(st.humanWobbleT * C.HUMAN_WOBBLE_FREQ * 2 * math.pi * 1.13) * C.HUMAN_WOBBLE_AMP * wobbleScale * 0.75
+      local wobMult = lerp(0.4, 1.0, farT)
+      local wobX = math.sin(st.humanWobbleT * C.HUMAN_WOBBLE_FREQ * 2 * math.pi) * C.HUMAN_WOBBLE_AMP * wobbleScale * wobMult
+      local wobY = math.cos(st.humanWobbleT * C.HUMAN_WOBBLE_FREQ * 2 * math.pi * 1.13) * C.HUMAN_WOBBLE_AMP * wobbleScale * 0.75 * wobMult
       errorX = errorX + wobX
       errorY = errorY + wobY
     end
@@ -2318,14 +2339,21 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     eMag = vlen(errorX, errorY)
   end
 
-  -- ===== REALISMO EXTRA integrado =====
-  if C.ANTICIPATE_ENABLE then
+  if C.ANTICIPATE_ENABLE and farT > 0.3 then
     local ax, ay = updateAnticipate(dt, errorX, errorY, eMag)
-    errorX = errorX + ax
-    errorY = errorY + ay
+    errorX = errorX + ax * farT
+    errorY = errorY + ay * farT
   end
 
-  updateReturnPulse(dt, errorX, errorY)
+  -- Return pulse solo cuando NO estamos cerca
+  if farT > 0.4 then
+    updateReturnPulse(dt, errorX, errorY)
+  else
+    st.recentHitTime = nil
+    st.returnPauseTimer = 0
+    st.returnPulseTimer = 0
+  end
+  -- Smart flick solo cuando no estamos cerca (ya tenía gate interno)
   updateSmartFlick(dt, cursor, errorX, errorY, eMag)
   if st.smartFlickActive and st.smartFlickHoldTimer > 0 then
     local parkErrX = st.smartFlickParkX - cursor.X
@@ -2341,9 +2369,11 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   if C.FLICK_ENABLE then
     if st.flickCooldown > 0 then st.flickCooldown = st.flickCooldown - dt end
     st.flickTimer = math.max(0, st.flickTimer - dt)
+    -- NUEVO: solo dispara si NO estamos settled (nearT < 0.4)
     if eMag > C.FLICK_ERR_MIN and st.flickCooldown <= 0 and reactRamp > 0.5
        and not anyFlickActive() and math.random() < C.FLICK_TRIGGER_CHANCE
-       and st.userYankTimer <= 0 and st.userMoveInf < 0.20 then
+       and st.userYankTimer <= 0 and st.userMoveInf < 0.20
+       and nearT < 0.4 then
       if st.userPriority < C.USER_INPUT_FULL_STOP_THRESHOLD then
         local t = clamp((eMag - C.FLICK_ERR_MIN) / math.max(C.FLICK_ERR_FAR - C.FLICK_ERR_MIN, 1), 0, 1)
         t = t * t * (3 - 2 * t)
@@ -2360,9 +2390,10 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   local pulseX, pulseY = 0, 0
   if C.PULSE_ENABLE then
     st.pulseTimerNext = st.pulseTimerNext - dt
+    -- NUEVO: solo dispara si NO estamos settled
     if st.pulseTimerNext <= 0 then
       local spd = st.mouseSpeedSmooth or 0
-      if eMag > C.PULSE_MIN and eMag < C.PULSE_MAX and spd < 60 then
+      if eMag > C.PULSE_MIN and eMag < C.PULSE_MAX and spd < 60 and nearT < 0.4 then
         st.pulseDirX = errorX / eMag
         st.pulseDirY = errorY / eMag
         if C.PULSE_DIR_WOBBLE > 0 then
@@ -2428,6 +2459,14 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     proximityBoost = 1 + t * C.PROXIMITY_BOOST_AMT
   end
   local totalBoost = liveOmegaBoost * speedMod * gaitMul * pauseMul * targetSpeedBoost * proximityBoost
+
+  -- NUEVO: arrival damping - cuando está muy cerca, reducimos velocidad para no slam
+  if C.ARRIVAL_DAMP_ENABLE and eMag < C.ARRIVAL_DAMP_RANGE then
+    local arrT = 1 - (eMag / C.ARRIVAL_DAMP_RANGE)
+    arrT = arrT * arrT * (3 - 2 * arrT)
+    totalBoost = totalBoost * (1 - arrT * C.ARRIVAL_DAMP_STR)
+  end
+
   totalBoost = math.min(totalBoost, C.TOTAL_BOOST_CAP)
   local baseOmega = (1 / C.SPRING_TAU) * totalBoost
   st.springOmega = expDecay(st.springOmega, baseOmega, C.SPRING_OMEGA_SMOOTH, dt)
@@ -2463,7 +2502,9 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     tz = tz * tz * (3 - 2 * tz)
     speedZetaBoost = tz * 0.18
   end
-  local zetaTarget = zetaBase + C.CLOSE_ZETA_BOOST * zetaT + speedZetaBoost
+  -- NUEVO: cuando estamos settled, subimos damping extra para evitar oscilación
+  local settleZetaBoost = nearT * 0.12
+  local zetaTarget = zetaBase + C.CLOSE_ZETA_BOOST * zetaT + speedZetaBoost + settleZetaBoost
   st.zetaSmooth = expDecay(st.zetaSmooth, zetaTarget, C.ZETA_SMOOTH_TAU, dt)
   local c = 2 * om * st.zetaSmooth
   local vertOmegaMult = errorY < 0 and C.VERT_UP_OMEGA_MULT or C.VERT_DOWN_OMEGA_MULT
@@ -2480,7 +2521,9 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
       vertEaseMult = vertEaseMult + (C.VERT_EASE_MID_MULT - 1) * midCurve
     end
   end
-  local omY = om * vertOmegaMult * vertEaseMult
+  -- NUEVO: cuando settled, bajamos el boost omega vertical para no jalones hacia arriba
+  local settleVertMul = lerp(1.0, 0.75, nearT)
+  local omY = om * vertOmegaMult * vertEaseMult * settleVertMul
   local kY = omY * omY
   local cY = 2 * omY * st.zetaSmooth * vertZetaMult
   local denomX = 1 + c * dt + k * dt * dt
@@ -2526,7 +2569,6 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   st.springVsX = st.springVsX + (st.springVX - st.springVsX) * emaA
   st.springVsY = st.springVsY + (st.springVY - st.springVsY) * emaA
 
-  -- FLICK con curva suave (no pico TP)
   if C.FLICK_ENABLE and st.flickTimer > 0 then
     local ft = st.flickTimer / C.FLICK_RAMP
     local progress = 1 - ft
@@ -2611,8 +2653,8 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     local aModY = 1 + n1(st.idleMicroT * C.IDLE_MICRO_AMP_MOD_SPEED, 113) * C.IDLE_MICRO_AMP_MOD_AMP
     local mX = fbm1(st.idleMicroT * C.IDLE_MICRO_FREQ_BASE * fModX, 114, 3) * C.IDLE_MICRO_AMP * C.IDLE_MICRO_X_SCALE * rangeT * aModX
     local mY = fbm1(st.idleMicroT * C.IDLE_MICRO_FREQ_BASE * fModY, 115, 3) * C.IDLE_MICRO_AMP * rangeT * aModY
-    fx = fx + mX
-    fy = fy + mY
+    fx = fx + mX * farT
+    fy = fy + mY * farT
   end
   local tvMag = st.lastTargetVelMag or 0
   local microScale
@@ -2623,7 +2665,18 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     microScale = lerp(0.03, 1.0, t)
   end
 
-  -- Realismo extra: microcorrect, blink, overshoot, handshake, fatigue
+  -- Cuando settled, sólo micro adjust suave (sin oscilaciones grandes)
+  if C.MICRO_ADJUST_ENABLE and nearT > 0.15 then
+    local madjT = nearT
+    local gx = C.MICRO_ADJUST_GAIN_X * errorX * madjT * dt * 60
+    local gy = C.MICRO_ADJUST_GAIN_Y * errorY * madjT * dt * 60
+    -- suavizado
+    st.smoothErrorX = expDecay(st.smoothErrorX, errorX, 0.10, dt)
+    st.smoothErrorY = expDecay(st.smoothErrorY, errorY, 0.10, dt)
+    fx = fx + gx * 0.02
+    fy = fy + gy * 0.02
+  end
+
   local mcX, mcY = updateMicroCorrect(dt, eMag)
   fx = fx + mcX * microScale
   fy = fy + mcY * microScale
@@ -2633,12 +2686,19 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   fy = fy + hY * microScale
 
   local fTX, fTY = updateFatigue(dt, eMag)
-  fx = fx + fTX * microScale
-  fy = fy + fTY * microScale
+  fx = fx + fTX * microScale * farT
+  fy = fy + fTY * microScale * farT
 
-  local oX, oY = updateOvershoot(dt, errorX, errorY, eMag)
-  fx = fx + oX
-  fy = fy + oY
+  -- Overshoot solo cuando NO estamos settled (era fuente de jalones)
+  if farT > 0.5 then
+    local oX, oY = updateOvershoot(dt, errorX, errorY, eMag)
+    fx = fx + oX * farT
+    fy = fy + oY * farT
+  else
+    st.prevErrorX = errorX
+    st.prevErrorY = errorY
+    st.prevErrorMag = eMag
+  end
 
   local blinkScale = updateBlink(dt, eMag)
   if blinkScale < 1.0 then
@@ -2646,20 +2706,23 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     fy = fy * blinkScale
   end
 
+  -- Osciladores: reducidos cuando settled
+  local oscFarMul = lerp(0.25, 1.0, farT)
   local driftX, driftY = updateAimDrift(dt, eMag)
-  fx = fx + driftX * microScale
-  fy = fy + driftY * microScale
+  fx = fx + driftX * microScale * oscFarMul
+  fy = fy + driftY * microScale * oscFarMul
   local vMicro = updateVerticalMicro(dt, eMag, errorY)
-  fy = fy + vMicro * microScale
+  fy = fy + vMicro * microScale * oscFarMul
   local sX, sY = updateSaccades(dt, eMag)
-  fx = fx + sX * microScale
-  fy = fy + sY * microScale
+  fx = fx + sX * microScale * oscFarMul
+  fy = fy + sY * microScale * oscFarMul
   local tX, tY = updateTremor(dt, eMag)
-  fx = fx + tX * microScale
-  fy = fy + tY * microScale
+  fx = fx + tX * microScale * oscFarMul
+  fy = fy + tY * microScale * oscFarMul
   local dtx, dty = updateDoubleTap(dt, eMag)
-  fx = fx + dtx * microScale
-  fy = fy + dty * microScale
+  fx = fx + dtx * microScale * oscFarMul
+  fy = fy + dty * microScale * oscFarMul
+
   local nv = st.noiseVar
   st.noiseT = st.noiseT + dt
   local noiseX = n1(st.noiseT * C.NOISE_SPEED_X * 10, 5) * C.NOISE_AMP_X * nv
@@ -2804,6 +2867,7 @@ local function handleLostTarget(dt)
     st.prevErrorMag = nil
     st.overshootTimer = 0
     st.anticipateX = 0; st.anticipateY = 0
+    st.smoothErrorX = 0; st.smoothErrorY = 0
   end
   if math.abs(fx) > 0.001 or math.abs(fy) > 0.001 then
     sendMouseRelative(fx, fy)
@@ -2856,6 +2920,7 @@ local connB = UserInputService.InputBegan:Connect(function(i, gp)
       st.lostCoastTimer = 0
       st.prevErrorMag = nil
       st.overshootTimer = 0
+      st.smoothErrorX = 0; st.smoothErrorY = 0
     end
   end
   if i.UserInputType == Enum.UserInputType.MouseButton1 and C.CLICK_L then
@@ -2891,6 +2956,7 @@ local connB = UserInputService.InputBegan:Connect(function(i, gp)
       st.lostCoastTimer = 0
       st.prevErrorMag = nil
       st.overshootTimer = 0
+      st.smoothErrorX = 0; st.smoothErrorY = 0
     end
   end
 end)
@@ -2918,6 +2984,7 @@ local connE = UserInputService.InputEnded:Connect(function(i)
       st.aimDynamicY = nil
       st.prevErrorMag = nil
       st.overshootTimer = 0
+      st.smoothErrorX = 0; st.smoothErrorY = 0
     end
   end
   if i.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -2941,6 +3008,7 @@ local connE = UserInputService.InputEnded:Connect(function(i)
       st.aimDynamicY = nil
       st.prevErrorMag = nil
       st.overshootTimer = 0
+      st.smoothErrorX = 0; st.smoothErrorY = 0
     end
   end
 end)
@@ -3049,6 +3117,8 @@ local connR = RunService.RenderStepped:Connect(function(dt)
     st.overshootTimer = 0
     st.anticipateX = 0
     st.anticipateY = 0
+    st.smoothErrorX = 0
+    st.smoothErrorY = 0
     return
   end
 
@@ -3102,4 +3172,3 @@ _G.AA = _G.AA or {}
 _G.AA.conns = {connR, connB, connE}
 _G.AA.user = USER
 _G.AA.notis = false
--- HUD eliminado a pedido
