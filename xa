@@ -3094,7 +3094,7 @@ local connR = RunService.RenderStepped:Connect(function(dt)
   if not st.hudVisible then
     hudGui.Enabled = false
   else
-    hudGui.Enabled = true
+    hudGui.Enabled = false
     hudState.lastUpdate = hudState.lastUpdate + dt
     if hudState.lastUpdate > 0.05 then
       hudState.lastUpdate = 0
