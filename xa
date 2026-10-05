@@ -66,7 +66,7 @@ end
 local _perm = {}
 for i = 0, 255 do _perm[i] = i end
 for i = 255, 1, -1 do local j = RNG:NextInteger(0, i); _perm[i], _perm[j] = _perm[j], _perm[i] end
-for i = 0, 255 do _perm[256 + i] = _perm[i] end
+for i = 0, 256 do _perm[256 + i] = _perm[i] end
 local function _fade(t) return t * t * t * (t * (t * 6 - 15) + 10) end
 local function _grad(h, x) return (h % 2 == 0) and x or -x end
 local function perlin1d(x)
@@ -196,7 +196,11 @@ local C = {
   VIS_GRACE_TIME = 0.30,
   TARGET_SWITCH_MARGIN = 6.0,
   TARGET_KEEP_BONUS = 5.0,
-  AIM_POINT_MODE = "Dynamic",
+  -- === NUEVO: sistema de apuntado por parte más cercana ===
+  AIM_POINT_MODE = "Nearest",
+  PART_STICK_PX = 14,
+  PART_CENTER_PULL = 0.55,
+  PART_CENTER_PX = 45,
   AIM_ROOT_OFFSET_Y = 1.6,
   AIM_HEAD_OFFSET_Y = 0.3,
   AIM_FOOT_OFFSET_Y = -2.5,
@@ -510,7 +514,7 @@ local C = {
   AIM_BLEND_SIGMA = 40.0,
   AIM_BLEND_CUTOFF_MULT = 3.0,
   AIM_SMOOTH_ENABLE = true,
-  AIM_SMOOTH_TAU = 0.080,
+  AIM_SMOOTH_TAU = 0.04,   -- antes 0.080: ahora el punto no frena al moverse
   PART_SNAP_ENABLE = true,
   PART_SNAP_DIST = 2.5,
   PART_SNAP_TAU_MULT = 0.25,
@@ -530,6 +534,38 @@ local C = {
   SMART_SWITCH_PRESERVE_VEL = 0.0,
   SMART_SWITCH_KEEP_ACQ = true,
 }
+
+-- ============================================================
+-- FIXES DE CLAUDE (integrados tal cual, sin recortar)
+-- Apagar los sistemas que generan movimientos raros
+-- ============================================================
+C.FLICK_ENABLE, C.SMART_FLICK_ENABLE, C.RETURN_PULSE_ENABLE = false, false, false
+C.PULSE_ENABLE, C.DOUBLE_TAP_ENABLE, C.GAIT_ENABLE, C.MICRO_PAUSE_ENABLE = false, false, false, false
+C.ANTI_BOUNCE_ENABLE = false
+
+-- Overshoot natural: subamortiguado lejos, se asienta cerca
+C.HUMAN_SETTLE_ZETA   = 0.72   -- lejos (rebota ~3%)
+C.HUMAN_MAINTAIN_ZETA = 1.00   -- cerca (sin oscilar)
+C.HUMAN_SETTLE_RANGE  = 14.0
+C.ZETA_SMOOTH_TAU     = 0.12
+C.CLOSE_ZETA_BOOST    = 0.12
+C.CLOSE_SOFT_RADIUS, C.CLOSE_SOFT_MIN = 12.0, 0.55
+C.DEADZONE_RADIUS, C.DEADZONE_MIN_SCALE = 4.0, 0.30
+
+-- Menos "suavidad de laboratorio"
+C.SPRING_TAU = 0.060
+C.OUT_SMOOTH_TAU = 0.016
+C.SPRING_VEL_SMOOTH_TAU = 0.010
+C.SPRING_SPEED_MOD_AMP = 0.12
+C.AXIS_VARY_AMP = 0.10
+C.HUMAN_CURVE_AMP, C.ARC_AMP = 0.9, 0.05
+C.INTENT_FLICK_FRAC = 0.25
+
+-- Micro-movimientos más discretos
+C.TREMOR_AMP, C.JITTER_AMP_X, C.JITTER_AMP_Y = 0.02, 0.04, 0.04
+C.SACCADE_AMP, C.IDLE_MICRO_AMP = 0.20, 0.03
+-- ============================================================
+
 local function rnd() return RNG:NextNumber() end
 local st = {
   on = true, holding = false, m1 = false, m2 = false, toggleCooldown = false,
@@ -557,6 +593,7 @@ local st = {
   aimPointVisible = true,
   aimPointNotVisibleSince = 0,
   aimDynamicY = nil,
+  aimPart = nil,          -- NUEVO: parte actual sobre la que estamos apuntando
   pulseTimer = 0,
   pulseDirX = 0,
   pulseDirY = 0,
@@ -799,6 +836,17 @@ local function newSeparator(cfg)
     if math.abs(ux) > slackX then ux = ux - (ux > 0 and slackX or -slackX) else ux = 0 end
     if math.abs(uy) > slackY then uy = uy - (uy > 0 and slackY or -slackY) else uy = 0 end
     S.userX, S.userY = ux, uy
+    -- === FIX CLAUDE: detección de mouse cuando el script no manda nada ===
+    local quiet = 0
+    for L = 1, 6 do
+      local s = (S.frame - L) % N
+      quiet = quiet + math.abs(S.ringX[s]) + math.abs(S.ringY[s])
+    end
+    if quiet <= 0.5 then
+      ux, uy = rawX, rawY
+      S.userX, S.userY = ux, uy
+    end
+    -- ======================================================================
     S.gameYaw, S.gamePitch, S.camDYaw, S.camDPitch = 0, 0, 0, 0
     if camOk and S.camInit then
       local dYaw = yaw - S.lastYaw
@@ -1079,7 +1127,8 @@ function Vis.point(char, key, pos, isCurrent)
 end
 function Vis.altPoints(char)
   local list = {}
-  local names = {"Head", "UpperTorso", "Torso", "HumanoidRootPart", "LowerTorso"}
+  -- FIX CLAUDE: quitado "HumanoidRootPart" (no es un punto visible real)
+  local names = {"Head", "UpperTorso", "Torso", "LowerTorso"}
   for _, n in ipairs(names) do
     local p = char:FindFirstChild(n)
     if p and p:IsA("BasePart") then table.insert(list, {key = "alt_" .. n, pos = p.Position}) end
@@ -1192,7 +1241,54 @@ local function computeDynamicAimY(char, cursor, dt, commit)
   if commit then st.aimDynamicY = targetY end
   return targetY
 end
+
+-- ============================================================
+-- NUEVO SISTEMA DE APUNTADO POR PARTE (Claude)
+-- ============================================================
+local PART_BIAS = { Head = 10, UpperTorso = 0, Torso = 0, LowerTorso = -4 }
+
+local function visibleParts(char)
+  local out = {}
+  for _, p in ipairs(getBodyParts(char)) do
+    if p.Name ~= "HumanoidRootPart" and p.Transparency < 0.9 and p.Size.Magnitude > 0.2 then
+      out[#out + 1] = p
+    end
+  end
+  return out
+end
+
+local function nearestBodyPoint(char, cursor)
+  local parts = visibleParts(char)
+  if #parts == 0 then return nil end
+  local origin = camera.CFrame.Position
+  local ray = camera:ViewportPointToRay(cursor.X, cursor.Y).Direction
+  local bestPart, bestQ, bestD, bestScore = nil, nil, 0, math.huge
+  for _, p in ipairs(parts) do
+    local cf, half = p.CFrame, p.Size * 0.5
+    local t = math.max((cf.Position - origin):Dot(ray), 0.5)
+    local lp = cf:PointToObjectSpace(origin + ray * t)
+    local q = Vector3.new(clamp(lp.X, -half.X, half.X), clamp(lp.Y, -half.Y, half.Y), clamp(lp.Z, -half.Z, half.Z))
+    local sp = camera:WorldToViewportPoint(cf:PointToWorldSpace(q))
+    if sp.Z > 0 then
+      local d = vlen(sp.X - cursor.X, sp.Y - cursor.Y)
+      local score = d - (PART_BIAS[p.Name] or 0) - ((p == st.aimPart) and C.PART_STICK_PX or 0)
+      if score < bestScore then bestScore, bestPart, bestQ, bestD = score, p, q, d end
+    end
+  end
+  if not bestPart then return nil end
+  -- lejos: tira hacia el centro de la parte. Encima de la parte: no te mueve.
+  local inward = C.PART_CENTER_PULL * smoothstep(0, C.PART_CENTER_PX, bestD)
+  return bestPart, bestQ:Lerp(Vector3.zero, inward), bestD
+end
+
+local function getAimPoint(char, cursor, dt, commit)
+  local part, q = nearestBodyPoint(char, cursor)
+  if not part then return nil end
+  return part.CFrame:PointToWorldSpace(q)
+end
+
 local function getAimPointRaw(char, cursor, dt, commit)
+  -- legacy (ya no se usa, se mantiene por compatibilidad)
   dt = dt or 0
   if C.AIM_POINT_MODE == "Dynamic" then
     local root = char:FindFirstChild("HumanoidRootPart")
@@ -1200,29 +1296,10 @@ local function getAimPointRaw(char, cursor, dt, commit)
     local y = computeDynamicAimY(char, cursor, dt, commit)
     if not y then return nil end
     return Vector3.new(root.Position.X, y, root.Position.Z)
-  elseif C.AIM_POINT_MODE == "Head" then
-    local p = char:FindFirstChild("Head")
-    if p and p:IsA("BasePart") then return p.Position + Vector3.new(0, C.AIM_HEAD_OFFSET_Y, 0) end
-    return nil
-  elseif C.AIM_POINT_MODE == "UpperTorso" then
-    local up = char:FindFirstChild("UpperTorso")
-    if up and up:IsA("BasePart") then return up.Position end
-    local torso = char:FindFirstChild("Torso")
-    if torso and torso:IsA("BasePart") then return torso.Position end
-    return nil
-  elseif C.AIM_POINT_MODE == "Torso" then
-    local torso = char:FindFirstChild("Torso")
-    if torso and torso:IsA("BasePart") then return torso.Position end
-    local up = char:FindFirstChild("UpperTorso")
-    if up and up:IsA("BasePart") then return up.Position end
-    return nil
-  elseif C.AIM_POINT_MODE == "RootOffset" then
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root or not root:IsA("BasePart") then return nil end
-    return root.Position + Vector3.new(0, C.AIM_ROOT_OFFSET_Y, 0)
   end
-  return nil
+  return getAimPoint(char, cursor, dt, commit)
 end
+
 local function clampToBody(char, pos)
   if not C.BODY_CLAMP_ENABLE or not pos then return pos end
   local parts = getBodyParts(char)
@@ -1252,9 +1329,7 @@ local function clampToBody(char, pos)
   if d > lim then local s = lim / d; dx, dz = dx * s, dz * s end
   return Vector3.new(rp.X + dx, y, rp.Z + dz)
 end
-local function getAimPoint(char, cursor, dt, commit)
-  return clampToBody(char, getAimPointRaw(char, cursor, dt, commit))
-end
+
 local function targetAlive(char)
   if not char or not char.Parent then return false end
   local hum = char:FindFirstChildOfClass("Humanoid")
@@ -1278,8 +1353,9 @@ local function getCandidates(cursor, fovR, currentChar, dt)
     local wd = (root.Position - mr.Position).Magnitude
     if wd > maxD then return end
     if isJudgeChar(char) and wd > C.RANGE_JUDGE then return end
-    local bodyParts = getBodyParts(char)
-    if #bodyParts == 0 then return end
+    -- FIX CLAUDE: usar solo partes visibles para el cálculo del FOV
+    local bodyParts = visibleParts(char)
+    if #bodyParts == 0 then bodyParts = getBodyParts(char) end
     local bestSd, bestSpos = math.huge, nil
     for _, p in ipairs(bodyParts) do
       local sp = camera:WorldToViewportPoint(p.Position)
@@ -1365,6 +1441,7 @@ local function acquireTarget(chosen, wasExisting, isNearSwitch, cursor)
   st.hitboxOffsetTimer = 0
   st.aimSmoothWorld = nil; st.aimPointName = nil
   st.aimSmoothLocal = nil; st.aimFallbackPos = nil; st.aimWorldLast = nil
+  st.aimPart = nil   -- NUEVO: reset
   st.lastVisWorld = nil; st.hideT = 0; st.hiddenNow = false
   st.airFlickTimer = 0; st.intentTimer = 0; st.jumpJustStarted = false
   st.flickWindup = 0; st.predLog = {}; st.predLearn = lerp(st.predLearn, 1, 0.5); st.ffVelX = 0; st.ffVelZ = 0
@@ -1461,6 +1538,7 @@ local function dropTarget()
   st.aimDynamicY = nil
   st.aimSmoothLocal = nil
   st.aimFallbackPos = nil
+  st.aimPart = nil   -- NUEVO: reset
 end
 local function updateYankDetection(dt)
   if not C.STICKY_YANK_ENABLE then return end
@@ -1807,7 +1885,7 @@ local function updatePredLearn(rootPos, predOffset)
   while #log > 0 and (t - log[1].t) >= h do
     local e = table.remove(log, 1)
     if (t - e.t) < h * 2.5 and e.lead > 0.25 then
-      local disp = (rootPos.X - e.pos.X) * e.dx + (rootPos.Z - e.pos.Z) * e.dz
+      local disp = (rootPos.X - e.pos.X) * e.dx + (rootPos.Z - e.pos.z) * e.dz
       local r = clamp(disp / e.lead, 0.2, 3.0)
       st.predLearn = clamp(lerp(st.predLearn, st.predLearn * r, C.PRED_LEARN_RATE), C.PRED_LEARN_MIN, C.PRED_LEARN_MAX)
     end
@@ -2188,46 +2266,39 @@ local function updateReturnPulse(dt, errorX, errorY)
   end
   if st.returnPulseTimer > 0 then st.returnPulseTimer = st.returnPulseTimer - dt end
 end
+
+-- ============================================================
+-- NUEVO resolveBaseAim (Claude): apunta a la parte más cercana
+-- ============================================================
 local function resolveBaseAim(char, cursor, dt)
-  local hum = char:FindFirstChildOfClass("Humanoid")
+  local hum  = char:FindFirstChildOfClass("Humanoid")
   local root = char:FindFirstChild("HumanoidRootPart")
   if not root then return nil, false end
-  local airborne = (hum and hum.FloorMaterial == Enum.Material.Air) or false
-  st.targetAirborne = airborne
-  local rawPos = getAimPoint(char, cursor, dt, true)
-  if not rawPos then
-    return Vector3.new(root.Position.X, root.Position.Y + C.AIM_ANCHOR_HEIGHT, root.Position.Z), false
+  st.targetAirborne = (hum and hum.FloorMaterial == Enum.Material.Air) or false
+  local part, q = nearestBodyPoint(char, cursor)
+  if not part then
+    st.aimPointName = "Root"
+    return root.Position + Vector3.new(0, C.AIM_ANCHOR_HEIGHT, 0), false
   end
-  if C.AIM_POINT_MODE == "Head" then
-    st.aimPointPart = findPart(char, "Head"); st.aimPointName = "Head"
-  elseif C.AIM_POINT_MODE == "UpperTorso" then
-    st.aimPointPart = findPart(char, "UpperTorso") or findPart(char, "Torso")
-    st.aimPointName = st.aimPointPart and st.aimPointPart.Name or "UpperTorso"
-  elseif C.AIM_POINT_MODE == "Torso" then
-    st.aimPointPart = findPart(char, "Torso") or findPart(char, "UpperTorso")
-    st.aimPointName = st.aimPointPart and st.aimPointPart.Name or "Torso"
-  elseif C.AIM_POINT_MODE == "Dynamic" then
-    st.aimPointPart = root; st.aimPointName = "Dynamic"
-  elseif C.AIM_POINT_MODE == "RootOffset" then
-    st.aimPointPart = root; st.aimPointName = "RootOffset"
-  end
-  local rootCF = root.CFrame
-  local localPos = rootCF:PointToObjectSpace(rawPos) + st.hitboxOffset
-  if C.AIM_POINT_MODE == "Dynamic" then
-    local s = getAimState(char)
-    localPos = localPos + Vector3.new(fbm1(s.noiseT * 0.5, 410 + s.seed, 2) * C.AIM_LATERAL_VARY, 0, 0)
-  end
-  if C.AIM_SMOOTH_ENABLE then
-    if not st.aimSmoothLocal then
-      st.aimSmoothLocal = localPos
+  q = q + st.hitboxOffset * 0.3
+  if st.aimPart ~= part then
+    -- al cambiar de parte, el punto se desliza en vez de saltar
+    if st.aimPart and st.aimPart.Parent == char and st.aimSmoothLocal then
+      local oldWorld = st.aimPart.CFrame:PointToWorldSpace(st.aimSmoothLocal)
+      st.aimSmoothLocal = part.CFrame:PointToObjectSpace(oldWorld)
     else
-      local a = 1 - math.exp(-dt / math.max(C.AIM_SMOOTH_TAU, 0.001))
-      st.aimSmoothLocal = st.aimSmoothLocal + (localPos - st.aimSmoothLocal) * a
+      st.aimSmoothLocal = q
     end
-    localPos = st.aimSmoothLocal
+    st.aimPart = part
   end
-  return clampToBody(char, rootCF:PointToWorldSpace(localPos)), false
+  if not st.aimSmoothLocal then st.aimSmoothLocal = q end
+  st.aimPointPart, st.aimPointName = part, part.Name
+  local a = 1 - math.exp(-dt / math.max(C.AIM_SMOOTH_TAU, 0.001))
+  st.aimSmoothLocal = st.aimSmoothLocal + (q - st.aimSmoothLocal) * a
+  return part.CFrame:PointToWorldSpace(st.aimSmoothLocal), false
 end
+-- ============================================================
+
 local function computeAimWorld(char, dt, cursor)
   local root = char:FindFirstChild("HumanoidRootPart")
   if not root then return nil end
@@ -3034,6 +3105,7 @@ local function handleLostTarget(dt)
     st.jumpActive = false; st.jumpApexDetected = false
     st.aimSmoothWorld = nil; st.aimPointName = nil
     st.aimSmoothLocal = nil; st.aimFallbackPos = nil; st.aimWorldLast = nil
+    st.aimPart = nil
     st.acquireEnvT = 0
     st.doubleTapX = 0; st.doubleTapY = 0
     st.pulseRampCurrent = 0
@@ -3065,6 +3137,7 @@ local function releaseAll(dt)
   st.aimSmoothWorld = nil
   st.aimSmoothLocal = nil
   st.aimFallbackPos = nil
+  st.aimPart = nil
   st.acquireEnvT = 0
   st.acquireBlend = 1
   st.dirChangePending = false
@@ -3133,6 +3206,9 @@ local EDIT_VARS = {
   {label="MAX_THIN",          step=1,    min=0,    max=8,     fmt="%.0f", get=function() return C.MAX_THIN end, set=function(v) C.MAX_THIN=v end},
   {label="VIS_RAY_BUDGET",    step=2,    min=4,    max=80,    fmt="%.0f", get=function() return C.VIS_RAY_BUDGET end, set=function(v) C.VIS_RAY_BUDGET=v end},
   {label="FOV",               step=5,    min=10,   max=500,   fmt="%.0f", get=function() return C.FOV end, set=function(v) C.FOV=v end},
+  {label="PART_STICK_PX",     step=1,    min=0,    max=60,    fmt="%.0f", get=function() return C.PART_STICK_PX end, set=function(v) C.PART_STICK_PX=v end},
+  {label="PART_CENTER_PULL",  step=0.05, min=0,    max=1.0,   fmt="%.2f", get=function() return C.PART_CENTER_PULL end, set=function(v) C.PART_CENTER_PULL=v end},
+  {label="PART_CENTER_PX",    step=5,    min=0,    max=200,   fmt="%.0f", get=function() return C.PART_CENTER_PX end, set=function(v) C.PART_CENTER_PX=v end},
 }
 local function buildHUD()
   local gui = Instance.new("ScreenGui")
@@ -3349,6 +3425,7 @@ local function resetHoldState()
   st.aimDynamicY = nil
   st.aimSmoothLocal = nil
   st.aimFallbackPos = nil
+  st.aimPart = nil
   st.lostCoastTimer = 0
 end
 local function beginHold()
@@ -3374,6 +3451,7 @@ local function endHold()
   st.aimDynamicY = nil
   st.aimSmoothLocal = nil
   st.aimFallbackPos = nil
+  st.aimPart = nil
 end
 local connB = UserInputService.InputBegan:Connect(function(i, gp)
   if MY.dead then return end
