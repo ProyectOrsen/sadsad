@@ -586,10 +586,21 @@ C.PROX_CUT_START             = 22.0
 C.PROX_CUT_END               = 65.0
 
 -- FIX v2.1: reducción de predict de cerca extendida 100-150 studs (antes 45-110)
--- A <=100 studs: predict al mínimo. 100-150: sube gradual. >150: predict normal.
 C.PRED_CLOSE_NEAR            = 100.0
 C.PRED_CLOSE_FAR             = 150.0
 C.PRED_CLOSE_MIN_SCALE       = 0.10
+-- ============================================================
+
+-- ============================================================
+-- FIX v3: micro-movimientos NO cortan la asistencia
+-- ============================================================
+C.USER_MOVE_VEL_THRESH         = 60.0
+C.USER_MOVE_COOLDOWN_TRIGGER   = 90.0
+C.USER_MOVE_COOLDOWN           = 0.15
+C.USER_MOVE_COOLDOWN_ASSIST    = 0.55
+C.USER_MOVE_AWAY_ASSIST        = 0.20
+C.USER_MOVE_AWAY_DOT           = -0.30
+C.USER_MOVE_TOWARD_MIN         = 0.40
 -- ============================================================
 
 local function rnd() return RNG:NextNumber() end
@@ -611,7 +622,7 @@ local st = {
   flickMag = 0,
   flickCooldown = 0,
   flickPhaseSeed = rnd() * 100,
-  userMoveCooldown = 0,   -- FIX v2
+  userMoveCooldown = 0,
   userYankTimer = 0,
   prevUserDirX = 0,
   prevUserDirY = 0,
@@ -1491,7 +1502,7 @@ local function acquireTarget(chosen, wasExisting, isNearSwitch, cursor)
   st.userYankTimer = 0
   st.prevUserDirInit = false
   st.userMoveInf = 0
-  st.userMoveCooldown = 0   -- FIX v2
+  st.userMoveCooldown = 0
   st.aimPointVisible = true
   st.aimPointNotVisibleSince = 0
   st.smartFlickCooldown = 0
@@ -1591,11 +1602,16 @@ local function userAlong()
   return (st.mouseDeltaX * st.lastErrX + st.mouseDeltaY * st.lastErrY) / (um * em)
 end
 
--- FIX v2: updateUserMove reescrito con cooldown de control de usuario
+-- FIX v3: updateUserMove — micro-movimientos NO disparan cooldown, y moverse hacia el target tampoco
 local function updateUserMove(dt)
   local spd_now = st.mouseSpeedSmooth or 0
-  if spd_now > 20 then
-    st.userMoveCooldown = C.USER_MOVE_COOLDOWN
+  if spd_now > (C.USER_MOVE_COOLDOWN_TRIGGER or 90) then
+    -- Solo dispara cooldown si NO estás claramente yendo hacia el target.
+    -- Si te estás acercando, te ayudamos en vez de castigarte.
+    local al = userAlong()
+    if (not al) or al < (C.USER_MOVE_TOWARD_MIN or 0.40) then
+      st.userMoveCooldown = C.USER_MOVE_COOLDOWN
+    end
   end
   st.userMoveCooldown = math.max(0, (st.userMoveCooldown or 0) - dt)
 
@@ -3061,20 +3077,25 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
 
   local proxCut = 1 - smoothstep(C.PROX_CUT_START, C.PROX_CUT_END, eMag)
 
+  -- FIX v3: cooldown suave (55% mínimo, no 12%)
   local ucCooldown = 1
   if st.userMoveCooldown > 0 then
     local t = st.userMoveCooldown / C.USER_MOVE_COOLDOWN
     ucCooldown = C.USER_MOVE_COOLDOWN_ASSIST + (1 - C.USER_MOVE_COOLDOWN_ASSIST) * (1 - t)
   end
 
+  -- FIX v3: ucAlong suave — solo corta si CLARAMENTE te alejas
   local ucAlong = 1
   local _al = userAlong()
   if _al then
-    if _al < 0 then
+    local awayDot = C.USER_MOVE_AWAY_DOT or -0.30
+    if _al < awayDot then
       ucAlong = C.USER_MOVE_AWAY_ASSIST
-    elseif _al < 0.5 then
-      ucAlong = C.USER_MOVE_AWAY_ASSIST + (1 - C.USER_MOVE_AWAY_ASSIST) * (_al / 0.5)
+    elseif _al < 0 then
+      local t = (_al - awayDot) / (0 - awayDot)
+      ucAlong = C.USER_MOVE_AWAY_ASSIST + (1 - C.USER_MOVE_AWAY_ASSIST) * t
     end
+    -- Si _al >= 0 (vas hacia el target): ucAlong = 1.0 → asistencia COMPLETA
   end
 
   local userCtrl = math.min(ucCooldown, ucAlong)
@@ -3243,7 +3264,7 @@ local EDIT_VARS = {
   {label="LOST_DAMP",         step=0.05, min=0.1,  max=5.0,   fmt="%.2f", get=function() return C.LOST_SPRING_DAMP end, set=function(v) C.LOST_SPRING_DAMP=v end},
   {label="LOST_DECAY_TAU",    step=0.01, min=0.02, max=0.5,   fmt="%.2f", get=function() return C.LOST_DECAY_TAU end, set=function(v) C.LOST_DECAY_TAU=v end},
   {label="RELEASE_MAX_PX",    step=1,    min=5,    max=80,    fmt="%.0f", get=function() return C.RELEASE_MAX_PIXELS end, set=function(v) C.RELEASE_MAX_PIXELS=v end},
-  {label="USER_MOVE_VEL",     step=25,   min=100,  max=1500,  fmt="%.0f", get=function() return C.USER_MOVE_VEL_THRESH end, set=function(v) C.USER_MOVE_VEL_THRESH=v end},
+  {label="USER_MOVE_VEL",     step=5,    min=10,   max=1500,  fmt="%.0f", get=function() return C.USER_MOVE_VEL_THRESH end, set=function(v) C.USER_MOVE_VEL_THRESH=v end},
   {label="USER_YANK_VEL",     step=50,   min=500,  max=2500,  fmt="%.0f", get=function() return C.USER_YANK_VEL_THRESH end, set=function(v) C.USER_YANK_VEL_THRESH=v end},
   {label="TARGET_GRACE",      step=0.02, min=0,    max=1.0,   fmt="%.2f", get=function() return C.TARGET_GRACE_TIME end, set=function(v) C.TARGET_GRACE_TIME=v end},
   {label="STICKY_FOV",        step=0.05, min=0,    max=2.0,   fmt="%.2f", get=function() return C.STICKY_OUT_OF_FOV_TIME end, set=function(v) C.STICKY_OUT_OF_FOV_TIME=v end},
@@ -3261,6 +3282,9 @@ local EDIT_VARS = {
   {label="PROX_CUT_END",      step=2,    min=10,   max=200,   fmt="%.0f", get=function() return C.PROX_CUT_END end, set=function(v) C.PROX_CUT_END=v end},
   {label="USER_CD_TIME",      step=0.02, min=0,    max=1.0,   fmt="%.2f", get=function() return C.USER_MOVE_COOLDOWN end, set=function(v) C.USER_MOVE_COOLDOWN=v end},
   {label="USER_CD_ASSIST",    step=0.02, min=0,    max=1.0,   fmt="%.2f", get=function() return C.USER_MOVE_COOLDOWN_ASSIST end, set=function(v) C.USER_MOVE_COOLDOWN_ASSIST=v end},
+  {label="USER_CD_TRIGGER",   step=5,    min=10,   max=400,   fmt="%.0f", get=function() return C.USER_MOVE_COOLDOWN_TRIGGER end, set=function(v) C.USER_MOVE_COOLDOWN_TRIGGER=v end},
+  {label="USER_TOWARD_MIN",   step=0.05, min=-1.0, max=1.0,   fmt="%.2f", get=function() return C.USER_MOVE_TOWARD_MIN end, set=function(v) C.USER_MOVE_TOWARD_MIN=v end},
+  {label="USER_AWAY_DOT",     step=0.05, min=-1.0, max=0.5,   fmt="%.2f", get=function() return C.USER_MOVE_AWAY_DOT end, set=function(v) C.USER_MOVE_AWAY_DOT=v end},
   {label="PRED_CLOSE_NEAR",   step=5,    min=0,    max=400,   fmt="%.0f", get=function() return C.PRED_CLOSE_NEAR end, set=function(v) C.PRED_CLOSE_NEAR=v end},
   {label="PRED_CLOSE_FAR",    step=5,    min=10,   max=500,   fmt="%.0f", get=function() return C.PRED_CLOSE_FAR end, set=function(v) C.PRED_CLOSE_FAR=v end},
   {label="PRED_CLOSE_MIN",    step=0.02, min=0,    max=1.0,   fmt="%.2f", get=function() return C.PRED_CLOSE_MIN_SCALE end, set=function(v) C.PRED_CLOSE_MIN_SCALE=v end},
