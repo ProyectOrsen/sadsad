@@ -196,6 +196,7 @@ local C = {
   VIS_GRACE_TIME = 0.30,
   TARGET_SWITCH_MARGIN = 6.0,
   TARGET_KEEP_BONUS = 5.0,
+  -- === NUEVO: sistema de apuntado por parte más cercana ===
   AIM_POINT_MODE = "Nearest",
   PART_STICK_PX = 14,
   PART_CENTER_PULL = 0.55,
@@ -272,7 +273,7 @@ local C = {
   PROXIMITY_BOOST_RANGE = 35.0,
   PROXIMITY_BOOST_AMT = 0.15,
   SURFACE_PREDICT_ENABLE = true,
-  SURFACE_PREDICT_MARGIN = 1.5,
+  SURFACE_PREDICT_MARGIN = 1.1,
   SURFACE_PREDICT_MAX_CAST = 60.0,
   SURFACE_PREDICT_VEL_MIN = 5.0,
   SURFACE_PREDICT_GROUND_ENABLE = true,
@@ -513,7 +514,7 @@ local C = {
   AIM_BLEND_SIGMA = 40.0,
   AIM_BLEND_CUTOFF_MULT = 3.0,
   AIM_SMOOTH_ENABLE = true,
-  AIM_SMOOTH_TAU = 0.04,
+  AIM_SMOOTH_TAU = 0.04,   -- antes 0.080: ahora el punto no frena al moverse
   PART_SNAP_ENABLE = true,
   PART_SNAP_DIST = 2.5,
   PART_SNAP_TAU_MULT = 0.25,
@@ -536,19 +537,22 @@ local C = {
 
 -- ============================================================
 -- FIXES DE CLAUDE (integrados tal cual, sin recortar)
+-- Apagar los sistemas que generan movimientos raros
 -- ============================================================
 C.FLICK_ENABLE, C.SMART_FLICK_ENABLE, C.RETURN_PULSE_ENABLE = false, false, false
 C.PULSE_ENABLE, C.DOUBLE_TAP_ENABLE, C.GAIT_ENABLE, C.MICRO_PAUSE_ENABLE = false, false, false, false
 C.ANTI_BOUNCE_ENABLE = false
 
-C.HUMAN_SETTLE_ZETA   = 0.72
-C.HUMAN_MAINTAIN_ZETA = 1.00
+-- Overshoot natural: subamortiguado lejos, se asienta cerca
+C.HUMAN_SETTLE_ZETA   = 0.72   -- lejos (rebota ~3%)
+C.HUMAN_MAINTAIN_ZETA = 1.00   -- cerca (sin oscilar)
 C.HUMAN_SETTLE_RANGE  = 14.0
 C.ZETA_SMOOTH_TAU     = 0.12
 C.CLOSE_ZETA_BOOST    = 0.12
 C.CLOSE_SOFT_RADIUS, C.CLOSE_SOFT_MIN = 12.0, 0.55
 C.DEADZONE_RADIUS, C.DEADZONE_MIN_SCALE = 4.0, 0.30
 
+-- Menos "suavidad de laboratorio"
 C.SPRING_TAU = 0.060
 C.OUT_SMOOTH_TAU = 0.016
 C.SPRING_VEL_SMOOTH_TAU = 0.010
@@ -557,50 +561,9 @@ C.AXIS_VARY_AMP = 0.10
 C.HUMAN_CURVE_AMP, C.ARC_AMP = 0.9, 0.05
 C.INTENT_FLICK_FRAC = 0.25
 
+-- Micro-movimientos más discretos
 C.TREMOR_AMP, C.JITTER_AMP_X, C.JITTER_AMP_Y = 0.02, 0.04, 0.04
 C.SACCADE_AMP, C.IDLE_MICRO_AMP = 0.20, 0.03
--- ============================================================
-
--- ============================================================
--- FIX v2: control del usuario, sin jalones, overshoot natural
--- ============================================================
-C.USER_MOVE_VEL_THRESH       = 40.0
-C.USER_MOVE_SCALE            = 0.10
-C.MANUAL_DEADZONE            = 6
-C.MANUAL_FULL_SPEED          = 70
-C.MANUAL_CUT_MAX             = 0.92
-C.MANUAL_CUT_START           = 0.20
-C.MANUAL_CUT_FULL            = 0.75
-
-C.DEADZONE_RADIUS            = 6.0
-C.DEADZONE_MIN_SCALE         = 0.45
-C.CLOSE_SOFT_RADIUS          = 7.0
-C.CLOSE_SOFT_MIN             = 0.78
-
-C.ASSIST_STRENGTH            = 0.65
-
-C.USER_MOVE_COOLDOWN         = 0.22
-C.USER_MOVE_COOLDOWN_ASSIST  = 0.12
-C.USER_MOVE_AWAY_ASSIST      = 0.05
-C.PROX_CUT_START             = 22.0
-C.PROX_CUT_END               = 65.0
-
--- FIX v2.1: reducción de predict de cerca extendida 100-150 studs (antes 45-110)
-C.PRED_CLOSE_NEAR            = 100.0
-C.PRED_CLOSE_FAR             = 150.0
-C.PRED_CLOSE_MIN_SCALE       = 0.10
--- ============================================================
-
--- ============================================================
--- FIX v3: micro-movimientos NO cortan la asistencia
--- ============================================================
-C.USER_MOVE_VEL_THRESH         = 60.0
-C.USER_MOVE_COOLDOWN_TRIGGER   = 90.0
-C.USER_MOVE_COOLDOWN           = 0.15
-C.USER_MOVE_COOLDOWN_ASSIST    = 0.55
-C.USER_MOVE_AWAY_ASSIST        = 0.20
-C.USER_MOVE_AWAY_DOT           = -0.30
-C.USER_MOVE_TOWARD_MIN         = 0.40
 -- ============================================================
 
 local function rnd() return RNG:NextNumber() end
@@ -622,7 +585,6 @@ local st = {
   flickMag = 0,
   flickCooldown = 0,
   flickPhaseSeed = rnd() * 100,
-  userMoveCooldown = 0,
   userYankTimer = 0,
   prevUserDirX = 0,
   prevUserDirY = 0,
@@ -631,7 +593,7 @@ local st = {
   aimPointVisible = true,
   aimPointNotVisibleSince = 0,
   aimDynamicY = nil,
-  aimPart = nil,
+  aimPart = nil,          -- NUEVO: parte actual sobre la que estamos apuntando
   pulseTimer = 0,
   pulseDirX = 0,
   pulseDirY = 0,
@@ -874,6 +836,7 @@ local function newSeparator(cfg)
     if math.abs(ux) > slackX then ux = ux - (ux > 0 and slackX or -slackX) else ux = 0 end
     if math.abs(uy) > slackY then uy = uy - (uy > 0 and slackY or -slackY) else uy = 0 end
     S.userX, S.userY = ux, uy
+    -- === FIX CLAUDE: detección de mouse cuando el script no manda nada ===
     local quiet = 0
     for L = 1, 6 do
       local s = (S.frame - L) % N
@@ -883,6 +846,7 @@ local function newSeparator(cfg)
       ux, uy = rawX, rawY
       S.userX, S.userY = ux, uy
     end
+    -- ======================================================================
     S.gameYaw, S.gamePitch, S.camDYaw, S.camDPitch = 0, 0, 0, 0
     if camOk and S.camInit then
       local dYaw = yaw - S.lastYaw
@@ -1163,6 +1127,7 @@ function Vis.point(char, key, pos, isCurrent)
 end
 function Vis.altPoints(char)
   local list = {}
+  -- FIX CLAUDE: quitado "HumanoidRootPart" (no es un punto visible real)
   local names = {"Head", "UpperTorso", "Torso", "LowerTorso"}
   for _, n in ipairs(names) do
     local p = char:FindFirstChild(n)
@@ -1277,6 +1242,9 @@ local function computeDynamicAimY(char, cursor, dt, commit)
   return targetY
 end
 
+-- ============================================================
+-- NUEVO SISTEMA DE APUNTADO POR PARTE (Claude)
+-- ============================================================
 local PART_BIAS = { Head = 10, UpperTorso = 0, Torso = 0, LowerTorso = -4 }
 
 local function visibleParts(char)
@@ -1308,6 +1276,7 @@ local function nearestBodyPoint(char, cursor)
     end
   end
   if not bestPart then return nil end
+  -- lejos: tira hacia el centro de la parte. Encima de la parte: no te mueve.
   local inward = C.PART_CENTER_PULL * smoothstep(0, C.PART_CENTER_PX, bestD)
   return bestPart, bestQ:Lerp(Vector3.zero, inward), bestD
 end
@@ -1319,6 +1288,7 @@ local function getAimPoint(char, cursor, dt, commit)
 end
 
 local function getAimPointRaw(char, cursor, dt, commit)
+  -- legacy (ya no se usa, se mantiene por compatibilidad)
   dt = dt or 0
   if C.AIM_POINT_MODE == "Dynamic" then
     local root = char:FindFirstChild("HumanoidRootPart")
@@ -1383,6 +1353,7 @@ local function getCandidates(cursor, fovR, currentChar, dt)
     local wd = (root.Position - mr.Position).Magnitude
     if wd > maxD then return end
     if isJudgeChar(char) and wd > C.RANGE_JUDGE then return end
+    -- FIX CLAUDE: usar solo partes visibles para el cálculo del FOV
     local bodyParts = visibleParts(char)
     if #bodyParts == 0 then bodyParts = getBodyParts(char) end
     local bestSd, bestSpos = math.huge, nil
@@ -1470,7 +1441,7 @@ local function acquireTarget(chosen, wasExisting, isNearSwitch, cursor)
   st.hitboxOffsetTimer = 0
   st.aimSmoothWorld = nil; st.aimPointName = nil
   st.aimSmoothLocal = nil; st.aimFallbackPos = nil; st.aimWorldLast = nil
-  st.aimPart = nil
+  st.aimPart = nil   -- NUEVO: reset
   st.lastVisWorld = nil; st.hideT = 0; st.hiddenNow = false
   st.airFlickTimer = 0; st.intentTimer = 0; st.jumpJustStarted = false
   st.flickWindup = 0; st.predLog = {}; st.predLearn = lerp(st.predLearn, 1, 0.5); st.ffVelX = 0; st.ffVelZ = 0
@@ -1502,7 +1473,6 @@ local function acquireTarget(chosen, wasExisting, isNearSwitch, cursor)
   st.userYankTimer = 0
   st.prevUserDirInit = false
   st.userMoveInf = 0
-  st.userMoveCooldown = 0
   st.aimPointVisible = true
   st.aimPointNotVisibleSince = 0
   st.smartFlickCooldown = 0
@@ -1568,7 +1538,7 @@ local function dropTarget()
   st.aimDynamicY = nil
   st.aimSmoothLocal = nil
   st.aimFallbackPos = nil
-  st.aimPart = nil
+  st.aimPart = nil   -- NUEVO: reset
 end
 local function updateYankDetection(dt)
   if not C.STICKY_YANK_ENABLE then return end
@@ -1601,22 +1571,9 @@ local function userAlong()
   if um < 0.001 or em < 0.5 then return nil end
   return (st.mouseDeltaX * st.lastErrX + st.mouseDeltaY * st.lastErrY) / (um * em)
 end
-
--- FIX v3: updateUserMove — micro-movimientos NO disparan cooldown, y moverse hacia el target tampoco
 local function updateUserMove(dt)
-  local spd_now = st.mouseSpeedSmooth or 0
-  if spd_now > (C.USER_MOVE_COOLDOWN_TRIGGER or 90) then
-    -- Solo dispara cooldown si NO estás claramente yendo hacia el target.
-    -- Si te estás acercando, te ayudamos en vez de castigarte.
-    local al = userAlong()
-    if (not al) or al < (C.USER_MOVE_TOWARD_MIN or 0.40) then
-      st.userMoveCooldown = C.USER_MOVE_COOLDOWN
-    end
-  end
-  st.userMoveCooldown = math.max(0, (st.userMoveCooldown or 0) - dt)
-
   if not C.USER_MOVE_REDUCE_ENABLE then st.userMoveInf = 0; return end
-  local spd = spd_now
+  local spd = st.mouseSpeedSmooth or 0
   local demand = 0
   if spd > C.USER_MOVE_VEL_THRESH then
     demand = clamp((spd - C.USER_MOVE_VEL_THRESH) / C.USER_MOVE_VEL_THRESH, 0, 1)
@@ -1631,7 +1588,6 @@ local function updateUserMove(dt)
   st.userMoveInf = expDecay(st.userMoveInf, demand, tau, dt)
   if st.userMoveInf < 0.003 then st.userMoveInf = 0 end
 end
-
 local function updateUserYank(dt)
   if not C.USER_YANK_ENABLE then return end
   local spd = st.mouseSpeedSmooth or 0
@@ -1929,7 +1885,7 @@ local function updatePredLearn(rootPos, predOffset)
   while #log > 0 and (t - log[1].t) >= h do
     local e = table.remove(log, 1)
     if (t - e.t) < h * 2.5 and e.lead > 0.25 then
-      local disp = (rootPos.X - e.pos.X) * e.dx + (rootPos.Z - e.pos.Z) * e.dz
+      local disp = (rootPos.X - e.pos.X) * e.dx + (rootPos.Z - e.pos.z) * e.dz
       local r = clamp(disp / e.lead, 0.2, 3.0)
       st.predLearn = clamp(lerp(st.predLearn, st.predLearn * r, C.PRED_LEARN_RATE), C.PRED_LEARN_MIN, C.PRED_LEARN_MAX)
     end
@@ -1971,7 +1927,6 @@ local function computePredictionOffset(vel, dt)
   scale = scale * st.predLearn * lerp(1, C.PRED_FAR_MULT, smoothstep(C.PRED_FAR_START, C.PRED_FAR_END, st.targetWorldD or 0))
   local px = pvx * scale
   local pz = pvz * scale
-  -- FIX v2.1: close-range predict reducido hasta 150 studs (antes 110)
   if C.PRED_CLOSE_ENABLE and st.targetWorldD then
     local t = clamp((st.targetWorldD - C.PRED_CLOSE_NEAR) / math.max(C.PRED_CLOSE_FAR - C.PRED_CLOSE_NEAR, 1), 0, 1)
     t = t * t * (3 - 2 * t)
@@ -2311,6 +2266,10 @@ local function updateReturnPulse(dt, errorX, errorY)
   end
   if st.returnPulseTimer > 0 then st.returnPulseTimer = st.returnPulseTimer - dt end
 end
+
+-- ============================================================
+-- NUEVO resolveBaseAim (Claude): apunta a la parte más cercana
+-- ============================================================
 local function resolveBaseAim(char, cursor, dt)
   local hum  = char:FindFirstChildOfClass("Humanoid")
   local root = char:FindFirstChild("HumanoidRootPart")
@@ -2323,6 +2282,7 @@ local function resolveBaseAim(char, cursor, dt)
   end
   q = q + st.hitboxOffset * 0.3
   if st.aimPart ~= part then
+    -- al cambiar de parte, el punto se desliza en vez de saltar
     if st.aimPart and st.aimPart.Parent == char and st.aimSmoothLocal then
       local oldWorld = st.aimPart.CFrame:PointToWorldSpace(st.aimSmoothLocal)
       st.aimSmoothLocal = part.CFrame:PointToObjectSpace(oldWorld)
@@ -2337,6 +2297,7 @@ local function resolveBaseAim(char, cursor, dt)
   st.aimSmoothLocal = st.aimSmoothLocal + (q - st.aimSmoothLocal) * a
   return part.CFrame:PointToWorldSpace(st.aimSmoothLocal), false
 end
+-- ============================================================
 
 local function computeAimWorld(char, dt, cursor)
   local root = char:FindFirstChild("HumanoidRootPart")
@@ -3068,48 +3029,19 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     local mul = 1 - st.releaseSmooth
     fx = fx * mul; fy = fy * mul
   end
-
-  -- FIX v2: escalado final con corte por proximidad, cooldown de usuario y movimiento en contra
   local fovFade = 1 - smoothstep(C.FOV * C.FOV_FADE_START, C.FOV * C.FOV_FADE_END, eMag)
   local lf = smoothstep(0, 1, clamp(st.lostFade, 0, 1))
   local rb = 1 + C.REACH_BOOST_MAX * smoothstep(C.REACH_START, C.REACH_FULL, eMag) * (1 - st.userMoveInf)
   local ib = 1 + C.INTENT_BOOST * st.intentFactor
-
-  local proxCut = 1 - smoothstep(C.PROX_CUT_START, C.PROX_CUT_END, eMag)
-
-  -- FIX v3: cooldown suave (55% mínimo, no 12%)
-  local ucCooldown = 1
-  if st.userMoveCooldown > 0 then
-    local t = st.userMoveCooldown / C.USER_MOVE_COOLDOWN
-    ucCooldown = C.USER_MOVE_COOLDOWN_ASSIST + (1 - C.USER_MOVE_COOLDOWN_ASSIST) * (1 - t)
-  end
-
-  -- FIX v3: ucAlong suave — solo corta si CLARAMENTE te alejas
-  local ucAlong = 1
-  local _al = userAlong()
-  if _al then
-    local awayDot = C.USER_MOVE_AWAY_DOT or -0.30
-    if _al < awayDot then
-      ucAlong = C.USER_MOVE_AWAY_ASSIST
-    elseif _al < 0 then
-      local t = (_al - awayDot) / (0 - awayDot)
-      ucAlong = C.USER_MOVE_AWAY_ASSIST + (1 - C.USER_MOVE_AWAY_ASSIST) * t
-    end
-    -- Si _al >= 0 (vas hacia el target): ucAlong = 1.0 → asistencia COMPLETA
-  end
-
-  local userCtrl = math.min(ucCooldown, ucAlong)
-  local totalScale = C.ASSIST_STRENGTH * fovFade * lf * rb * ib * proxCut * userCtrl
-  fx = fx * totalScale
-  fy = fy * totalScale
-
+  fx = fx * C.ASSIST_STRENGTH * fovFade * lf * rb * ib
+  fy = fy * C.ASSIST_STRENGTH * fovFade * lf * rb * ib
   if C.FF_ENABLE and st.aimWorldLast and st.tpIgnoreTimer <= 0 and st.tpActive < 0.3 then
     local fvx = st.hiddenNow and st.lastVisVelX or st.ffVelX
     local fvz = st.hiddenNow and st.lastVisVelZ or st.ffVelZ
     local p0 = camera:WorldToViewportPoint(st.aimWorldLast)
     local p1 = camera:WorldToViewportPoint(st.aimWorldLast + Vector3.new(fvx, 0, fvz) * 0.05)
     if p0.Z > 0 and p1.Z > 0 then
-      local ffs = (1 - st.userMoveInf) * (st.predConfidence or 1) * reactRamp * acqEnv * fovFade * lf * (1 - manualCut * C.MANUAL_CUT_MAX) * proxCut * userCtrl
+      local ffs = (1 - st.userMoveInf) * (st.predConfidence or 1) * reactRamp * acqEnv * fovFade * lf * (1 - manualCut * C.MANUAL_CUT_MAX)
       local ffx = clamp((p1.X - p0.X) / 0.05 * dt * C.FF_GAIN * ffs, -C.FF_MAX_PX, C.FF_MAX_PX)
       local ffy = clamp((p1.Y - p0.Y) / 0.05 * dt * C.FF_GAIN * ffs, -C.FF_MAX_PX, C.FF_MAX_PX)
       fx = fx + ffx
@@ -3225,7 +3157,6 @@ local function releaseAll(dt)
   st.smartFlickHoldTimer = 0
   st.smlScreenVelInit = false
   st.userYankTimer = 0
-  st.userMoveCooldown = 0
   st.aimPointVisible = true
   st.aimPointNotVisibleSince = 0
   st.aimDynamicY = nil
@@ -3264,7 +3195,7 @@ local EDIT_VARS = {
   {label="LOST_DAMP",         step=0.05, min=0.1,  max=5.0,   fmt="%.2f", get=function() return C.LOST_SPRING_DAMP end, set=function(v) C.LOST_SPRING_DAMP=v end},
   {label="LOST_DECAY_TAU",    step=0.01, min=0.02, max=0.5,   fmt="%.2f", get=function() return C.LOST_DECAY_TAU end, set=function(v) C.LOST_DECAY_TAU=v end},
   {label="RELEASE_MAX_PX",    step=1,    min=5,    max=80,    fmt="%.0f", get=function() return C.RELEASE_MAX_PIXELS end, set=function(v) C.RELEASE_MAX_PIXELS=v end},
-  {label="USER_MOVE_VEL",     step=5,    min=10,   max=1500,  fmt="%.0f", get=function() return C.USER_MOVE_VEL_THRESH end, set=function(v) C.USER_MOVE_VEL_THRESH=v end},
+  {label="USER_MOVE_VEL",     step=25,   min=100,  max=1500,  fmt="%.0f", get=function() return C.USER_MOVE_VEL_THRESH end, set=function(v) C.USER_MOVE_VEL_THRESH=v end},
   {label="USER_YANK_VEL",     step=50,   min=500,  max=2500,  fmt="%.0f", get=function() return C.USER_YANK_VEL_THRESH end, set=function(v) C.USER_YANK_VEL_THRESH=v end},
   {label="TARGET_GRACE",      step=0.02, min=0,    max=1.0,   fmt="%.2f", get=function() return C.TARGET_GRACE_TIME end, set=function(v) C.TARGET_GRACE_TIME=v end},
   {label="STICKY_FOV",        step=0.05, min=0,    max=2.0,   fmt="%.2f", get=function() return C.STICKY_OUT_OF_FOV_TIME end, set=function(v) C.STICKY_OUT_OF_FOV_TIME=v end},
@@ -3278,16 +3209,6 @@ local EDIT_VARS = {
   {label="PART_STICK_PX",     step=1,    min=0,    max=60,    fmt="%.0f", get=function() return C.PART_STICK_PX end, set=function(v) C.PART_STICK_PX=v end},
   {label="PART_CENTER_PULL",  step=0.05, min=0,    max=1.0,   fmt="%.2f", get=function() return C.PART_CENTER_PULL end, set=function(v) C.PART_CENTER_PULL=v end},
   {label="PART_CENTER_PX",    step=5,    min=0,    max=200,   fmt="%.0f", get=function() return C.PART_CENTER_PX end, set=function(v) C.PART_CENTER_PX=v end},
-  {label="PROX_CUT_START",    step=1,    min=0,    max=80,    fmt="%.0f", get=function() return C.PROX_CUT_START end, set=function(v) C.PROX_CUT_START=v end},
-  {label="PROX_CUT_END",      step=2,    min=10,   max=200,   fmt="%.0f", get=function() return C.PROX_CUT_END end, set=function(v) C.PROX_CUT_END=v end},
-  {label="USER_CD_TIME",      step=0.02, min=0,    max=1.0,   fmt="%.2f", get=function() return C.USER_MOVE_COOLDOWN end, set=function(v) C.USER_MOVE_COOLDOWN=v end},
-  {label="USER_CD_ASSIST",    step=0.02, min=0,    max=1.0,   fmt="%.2f", get=function() return C.USER_MOVE_COOLDOWN_ASSIST end, set=function(v) C.USER_MOVE_COOLDOWN_ASSIST=v end},
-  {label="USER_CD_TRIGGER",   step=5,    min=10,   max=400,   fmt="%.0f", get=function() return C.USER_MOVE_COOLDOWN_TRIGGER end, set=function(v) C.USER_MOVE_COOLDOWN_TRIGGER=v end},
-  {label="USER_TOWARD_MIN",   step=0.05, min=-1.0, max=1.0,   fmt="%.2f", get=function() return C.USER_MOVE_TOWARD_MIN end, set=function(v) C.USER_MOVE_TOWARD_MIN=v end},
-  {label="USER_AWAY_DOT",     step=0.05, min=-1.0, max=0.5,   fmt="%.2f", get=function() return C.USER_MOVE_AWAY_DOT end, set=function(v) C.USER_MOVE_AWAY_DOT=v end},
-  {label="PRED_CLOSE_NEAR",   step=5,    min=0,    max=400,   fmt="%.0f", get=function() return C.PRED_CLOSE_NEAR end, set=function(v) C.PRED_CLOSE_NEAR=v end},
-  {label="PRED_CLOSE_FAR",    step=5,    min=10,   max=500,   fmt="%.0f", get=function() return C.PRED_CLOSE_FAR end, set=function(v) C.PRED_CLOSE_FAR=v end},
-  {label="PRED_CLOSE_MIN",    step=0.02, min=0,    max=1.0,   fmt="%.2f", get=function() return C.PRED_CLOSE_MIN_SCALE end, set=function(v) C.PRED_CLOSE_MIN_SCALE=v end},
 }
 local function buildHUD()
   local gui = Instance.new("ScreenGui")
@@ -3456,8 +3377,7 @@ local function buildHudMessages()
     local yk = st.userYankTimer > 0 and " [YANK]" or ""
     local um = st.userMoveInf > 0.10 and string.format(" [UM%d%%]", math.floor(st.userMoveInf * 100)) or ""
     local it = st.intentFactor > 0.1 and string.format(" [INT%d%%]", math.floor(st.intentFactor * 100)) or ""
-    local ucd = st.userMoveCooldown > 0 and string.format(" [CD%.0fms]", st.userMoveCooldown * 1000) or ""
-    table.insert(msgs, string.format("◆ %s %dst →%s%s%s%s%s%s%s%s", name, dist, part, vis, fb, tp, yk, um, it, ucd))
+    table.insert(msgs, string.format("◆ %s %dst →%s%s%s%s%s%s%s", name, dist, part, vis, fb, tp, yk, um, it))
   elseif st.lostFade > 0.02 then
     table.insert(msgs, string.format("◆ FADE  %.2f", st.lostFade))
   else
@@ -3472,8 +3392,7 @@ local function buildHudMessages()
   table.insert(msgs, string.format("ω=%.0f ζ=%.2f v=(%.0f,%.0f)",
     st.springOmega or 0, st.zetaSmooth or 0, st.springVsX or 0, st.springVsY or 0))
   local tvMag = st.lastTargetVelMag or 0
-  table.insert(msgs, string.format("tV=%.1f conf=%.2f  MODE=%s  predClose=%.0f→%.0f",
-    tvMag, st.predConfidence or 1.0, C.AIM_POINT_MODE, C.PRED_CLOSE_NEAR, C.PRED_CLOSE_FAR))
+  table.insert(msgs, string.format("tV=%.1f conf=%.2f  MODE=%s", tvMag, st.predConfidence or 1.0, C.AIM_POINT_MODE))
   return msgs
 end
 local function resetHoldState()
@@ -3499,7 +3418,6 @@ local function resetHoldState()
   st.flickTimer = 0
   st.flickPhaseSeed = rnd() * 100
   st.userYankTimer = 0
-  st.userMoveCooldown = 0
   st.prevUserDirInit = false
   st.userMoveInf = 0
   st.aimPointVisible = true
@@ -3530,7 +3448,6 @@ local function endHold()
   st.smlScreenVelInit = false
   st.flickTimer = 0
   st.userMoveInf = 0
-  st.userMoveCooldown = 0
   st.aimDynamicY = nil
   st.aimSmoothLocal = nil
   st.aimFallbackPos = nil
