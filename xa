@@ -1,33 +1,36 @@
-if _G.AA then
-  if _G.AA.conns then for _, c in ipairs(_G.AA.conns) do pcall(function() c:Disconnect() end) end end
-  if _G.AA.gui then pcall(function() _G.AA.gui:Destroy() end) end
-  if _G.AA.hud then pcall(function() _G.AA.hud:Destroy() end) end
-  _G.AA = nil
-end
-
-wait(0.12)
-
 local Players          = game:GetService("Players")
 local RunService       = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local Workspace        = game:GetService("Workspace")
-local Camera           = Workspace.CurrentCamera
-
-local player = Players.LocalPlayer
-local camera = Camera
+local player    = Players.LocalPlayer
+local PlayerGui = player:WaitForChild("PlayerGui")
+do
+  local old = _G.AA
+  if old then
+    old.dead = true
+    if old.conns then
+      for _, c in ipairs(old.conns) do pcall(function() c:Disconnect() end) end
+    end
+    if old.unbind then pcall(old.unbind) end
+    if old.gui then pcall(function() old.gui:Destroy() end) end
+    if old.hud then pcall(function() old.hud:Destroy() end) end
+    _G.AA = nil
+  end
+  pcall(function() RunService:UnbindFromRenderStep("AA_Main") end)
+  local stale = PlayerGui:FindFirstChild("AA_HUD")
+  if stale then pcall(function() stale:Destroy() end) end
+end
+task.wait(0.12)
+local camera = workspace.CurrentCamera
 if not player.Character then player.CharacterAdded:Wait() end
-
+local MY = { dead = false, conns = {}, version = "3.3.0" }
+_G.AA = MY
+local clock = os.clock
+local RNG   = Random.new()
 local USER = {
-  REACTION_DELAY   = 0.07,
-  SWITCH_DELAY     = 0.00,
-  AIM_MODE         = "Spring",
-  SPRING_SPEED     = 1.0,
-  TARGET_FILTERS   = {"Visible"},
-  AIM_POINT        = "Varied",
-  HITBOX_SELECTION = "Closest",
-  AIR_HITBOXES     = {"HitboxBody","HitboxHead","Head","UpperTorso","Torso"},
+  REACTION_DELAY = 0.07, SWITCH_DELAY = 0.00, AIM_MODE = "Spring", SPRING_SPEED = 1.0,
+  TARGET_FILTERS = {"Visible"}, AIM_POINT = "Varied", HITBOX_SELECTION = "Closest",
+  AIR_HITBOXES = {"HitboxBody","HitboxHead","Head","UpperTorso","Torso"},
 }
-
 local BODY_PART_NAMES = {
   Head = true, Torso = true, UpperTorso = true, LowerTorso = true,
   HumanoidRootPart = true,
@@ -36,45 +39,38 @@ local BODY_PART_NAMES = {
   LeftHand = true, RightHand = true,
   LeftUpperLeg = true, RightUpperLeg = true, LeftLowerLeg = true, RightLowerLeg = true,
   LeftFoot = true, RightFoot = true,
+  ["Left Arm"] = true, ["Right Arm"] = true, ["Left Leg"] = true, ["Right Leg"] = true,
 }
-local R6_BODY_PARTS = {"Head", "Torso", "HumanoidRootPart", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
-local R15_BODY_PARTS = {"Head", "UpperTorso", "LowerTorso", "HumanoidRootPart", "LeftUpperArm", "RightUpperArm", "LeftLowerArm", "RightLowerArm", "LeftHand", "RightHand", "LeftUpperLeg", "RightUpperLeg", "LeftLowerLeg", "RightLowerLeg", "LeftFoot", "RightFoot"}
-
 local partsCache = setmetatable({}, {__mode = "k"})
 local PARTS_CACHE_TTL = 0.8
-
 local function getBodyParts(char)
   if not char then return {} end
-  local now = tick()
+  local t = clock()
   local c = partsCache[char]
-  if c and (now - c.t) < PARTS_CACHE_TTL then return c.parts end
-  local parts = {}
-  local isR6 = char:FindFirstChild("Torso") ~= nil and char:FindFirstChild("UpperTorso") == nil
-  local names = isR6 and R6_BODY_PARTS or R15_BODY_PARTS
-  for _, name in ipairs(names) do
-    local p = char:FindFirstChild(name)
-    if p and p:IsA("BasePart") then table.insert(parts, p) end
+  if c and (t - c.t) < PARTS_CACHE_TTL then
+    local ok = true
+    for i = 1, #c.parts do
+      if not c.parts[i].Parent then ok = false break end
+    end
+    if ok then return c.parts end
   end
-  if #parts == 0 then
-    for _, p in ipairs(char:GetChildren()) do
-      if p:IsA("BasePart") and BODY_PART_NAMES[p.Name] then table.insert(parts, p) end
+  local parts = {}
+  for _, p in ipairs(char:GetChildren()) do
+    if p:IsA("BasePart") and BODY_PART_NAMES[p.Name] then
+      table.insert(parts, p)
     end
   end
-  partsCache[char] = {t = now, parts = parts}
+  partsCache[char] = {t = t, parts = parts}
   return parts
 end
-
 local _perm = {}
 for i = 0, 255 do _perm[i] = i end
-for i = 255, 1, -1 do local j = math.random(0, i); _perm[i], _perm[j] = _perm[j], _perm[i] end
+for i = 255, 1, -1 do local j = RNG:NextInteger(0, i); _perm[i], _perm[j] = _perm[j], _perm[i] end
 for i = 0, 255 do _perm[256 + i] = _perm[i] end
-
 local function _fade(t) return t * t * t * (t * (t * 6 - 15) + 10) end
 local function _grad(h, x) return (h % 2 == 0) and x or -x end
 local function perlin1d(x)
-  local xi = math.floor(x) % 256
-  local xf = x - math.floor(x)
-  local u = _fade(xf)
+  local xi = math.floor(x) % 256; local xf = x - math.floor(x); local u = _fade(xf)
   return _grad(_perm[xi], xf) + u * (_grad(_perm[xi + 1], xf - 1) - _grad(_perm[xi], xf))
 end
 local function n1(t, seed) return perlin1d(t + seed * 37.13) end
@@ -87,483 +83,753 @@ local function fbm1(t, seed, octaves)
   end
   return sum / norm
 end
-
 local C = {
-  TOGGLE = Enum.KeyCode.X,
-  CLICK_L = true, CLICK_R = true, AUTO = false,
+  CLICK_L = true, CLICK_R = true, AUTO = false, TOGGLE = Enum.KeyCode.X,
   FOV = 120, FOV_TRAIL = 120, FOV_CURRENT_TARGET_BONUS = 0,
   RANGE_PLAYER = 2999, RANGE_NPC = 700, RANGE_JUDGE = 20,
   AIM_NPC = true,
-
-  RECOIL_ENABLE = false,
-  RECOIL_ALWAYS_ACTIVE = false,
-  RECOIL_MOUSEBUTTON = 0,
-  RECOIL_STRENGTH_VERT = 1.0,
-  RECOIL_STRENGTH_HORZ = 0.5,
-  RECOIL_PIXEL_PER_FRAME = 2.0,
-  RECOIL_RAMP_UP = 0.15,
-  RECOIL_RAMP_DOWN = 0.10,
-  RECOIL_HOLD_MAX = 3.0,
-  RECOIL_CAM_PITCH_GAIN = 0.85,
-  RECOIL_CAM_YAW_GAIN = 0.30,
-  RECOIL_MOUSEREL_MULT = 1.0,
-  RECOIL_CAM_DELTA_MIN = 0.0005,
-  RECOIL_CAM_DELTA_MAX = 0.06,
-  RECOIL_SENS_COMP = 0.004,
-  RECOIL_CAM_SMOOTH_TAU = 0.020,
-  RECOIL_DECAY_TAU = 0.060,
-  RECOIL_MAX_COMP = 12.0,
-  RECOIL_SPRING_TAU = 0.035,
-  RECOIL_USE_CAM_DELTA = true,
-  RECOIL_USE_FIXED_MOUSEREL = false,
-  RECOIL_FIXED_Y = 2.0,
-  RECOIL_FIXED_X = 0.0,
-  RECOIL_PITCH_SIGN = -1,
-  RECOIL_YAW_SIGN = -1,
-  RECOIL_DEBUG = false,
-
-  WALLCHECK = true, WALL_USE_NATIVE_API = true,
-  WALL_PASS_THIN = true, WALL_PASS_TRANSP = true, WALL_PASS_NONCOLLIDE = true, WALL_PASS_DECOR = true,
-  WALL_THIN_MAX_THICK = 0.55, WALL_TRANSP_MIN = 0.80,
-  WALL_MAX_BYPASS = 4, WALL_STEP = 0.05,
-  WALL_CACHE_TTL = 0.008, WALL_CACHE_POS_EPS = 0.10,
-  EDGE_THIN = 0.55, MAX_BOUNCE = 4, MAX_THIN = 3,
-  VIS_CACHE = 0.008, VIS_POS_INVALIDATE = 0.10, VIS_TARGET_RADIUS = 0.55,
-  AIM_VIS_CHECK_ENABLE = true, AIM_VIS_GRACE_TIME = 0.06,
-
-  SRC_ENABLE = true, SRC_SENS_YAW_INIT = 0.10, SRC_SENS_PITCH_INIT = 0.10,
-  SRC_SENS_LERP_TAU = 0.35, SRC_SENS_MIN = 0.004, SRC_SENS_MAX = 1.80,
-  SRC_USER_MIN_PIX = 2, SRC_USER_SPEED_TAU = 0.05,
-  SRC_GAME_THRESH = 0.22, SRC_GAME_HOLD = 0.25, SRC_GAME_CALM = 0.05,
-  SRC_SENS_SAMPLE_MIN = 8, SRC_SENS_MIN_OBS = 0.02, SRC_GAME_SMOOTH_TAU = 0.08, SRC_CAM_HISTORY = 8,
-
+  WALLCHECK = true,
+  WB_ENABLE = true,
+  WB_MAX_THICK = 0.0,
+  WB_MAX_PARTS = 0,
+  WB_MAX_STEPS = 10,
+  WB_IGNORE_CHARACTERS = true,
+  WB_RESPECT_CANCOLLIDE = true,
+  WB_SOFT_MATERIALS = { Glass = true, ForceField = true },
+  EDGE_THIN = 0.08,
+  TRANSP_BYPASS = 0.95,
+  MAX_BOUNCE = 3,
+  MAX_THIN = 1,
+  VIS_CACHE = 0.004,
+  VIS_CACHE_MAX = 0.05,
+  VIS_POS_INVALIDATE = 0.05,
+  VIS_TARGET_RADIUS = 0.45,
+  VIS_RAY_BUDGET = 30,
+  VIS_HYST = 1,
+  VIS_POINTS_ENABLE = true,
+  AIM_VIS_CHECK_ENABLE = true,
+  AIM_VIS_GRACE_TIME = 0.05,
   CENTER_AIM = true, CENTER_X = 0, CENTER_Y = 0, MOUSE_SCALE = 1.0,
-  CENTER_REQUIRE_MOUSE = true, CENTER_REQUIRE_RADIUS = 50,
-
-  TARGET_GRACE_TIME = 0.30, TARGET_GRACE_STILL = 0.60, VIS_GRACE_TIME = 0.30,
-  TARGET_SWITCH_MARGIN = 10.0, TARGET_KEEP_BONUS = 8.0,
-  TARGET_THREAT_ENABLE = true, TARGET_THREAT_ANGLE = 60.0, TARGET_THREAT_BONUS = 15.0,
-  TARGET_HEALTH_ENABLE = true, TARGET_HEALTH_BONUS = 5.0, TARGET_DIST_WEIGHT = 1.0,
-
-  -- ===== NUEVO: retención agresiva del target =====
-  -- El target NUNCA se suelta por estar fuera de FOV. Solo se suelta si el
-  -- usuario jala el mouse FUERTE en dirección CONTRARIA al aim.
-  USER_ESCAPE_MIN_SPEED = 35.0,   -- velocidad mínima del mouse para considerar escape
-  USER_ESCAPE_DOT_THRESH = -0.30, -- dot < esto = jalando opuesto al aim
-  USER_ESCAPE_HOLD_TIME = 0.10,   -- tiempo mínimo jalando opuesto para soltar
-  USER_ESCAPE_RELEASE_THRESH = 0.40, -- intensidad mínima para empezar a contar
-
-  OVERSHOOT_MIN_ERR = 12.0,       -- no overshoot si eMag < esto
-
+  CENTER_REQUIRE_LOCK = true,
+  CENTER_REQUIRE_MOUSE = true,
+  CENTER_REQUIRE_RADIUS = 50,
+  ASSIST_STRENGTH = 1.12,
+  OUT_SMOOTH_TAU = 0.010,
+  OUT_MAX_ACCEL = 120000,
+  CLOSE_SOFT_RADIUS = 18.0,
+  CLOSE_SOFT_MIN = 0.22,
+  CLOSE_SOFT_POWER = 1.5,
+  FOV_FADE_START = 1.15,
+  FOV_FADE_END = 2.2,
+  SWITCH_STEER_SPEED = 180.0,
+  SWITCH_INTENT_BONUS = 60.0,
+  PRED_BODY_CAP = 4.0,
+  PRED_SCREEN_MAX_PX = 50.0,
+  BLOCK_FADE_TAU = 0.06,
+  BODY_CLAMP_ENABLE = true,
+  BODY_CLAMP_PAD = 0.15,
+  DEAD_DROP_IMMEDIATE = true,
+  REACH_BOOST_MAX = 0.7,
+  REACH_START = 15.0,
+  REACH_FULL = 120.0,
+  FF_ENABLE = true,
+  FF_GAIN = 0.8,
+  FF_MAX_PX = 22.0,
+  HIDE_KEEP_TIME = 1.6,
+  HIDE_FADE_TAU = 0.45,
+  HIDE_EXTRAP_MAX = 1.2,
+  RELEASE_INTENT_SPEED = 110.0,
+  RELEASE_INTENT_ALONG = -0.25,
+  RELEASE_INTENT_TIME = 0.09,
+  PRED_FAR_START = 80.0,
+  PRED_FAR_END = 400.0,
+  PRED_FAR_MULT = 1.9,
+  PRED_BODY_CAP_FAR = 8.5,
+  PRED_SCREEN_MAX_FAR = 100.0,
+  AIR_LEAD_RISE = 0.16,
+  AIR_LEAD_FALL = 0.12,
+  AIR_Y_MAX = 3.5,
+  AIR_FLICK_ENABLE = true,
+  AIR_FLICK_MAX_H = 8.0,
+  AIR_FLICK_FRAC_H = 0.85,
+  AIR_FLICK_GAIN = 0.9,
+  AIR_FLICK_TIME = 0.14,
+  AIR_FLICK_SPEED = 14.0,
+  INTENT_ENABLE = true,
+  INTENT_MIN_SPEED = 90.0,
+  INTENT_MIN_ERR = 12.0,
+  INTENT_MAX_ERR = 260.0,
+  INTENT_DOT_MIN = 0.45,
+  INTENT_DOT_FULL = 0.85,
+  INTENT_FLICK_FRAC = 0.55,
+  INTENT_FLICK_TIME = 0.12,
+  INTENT_FLICK_SPEED = 10.0,
+  INTENT_COOLDOWN = 0.28,
+  INTENT_BOOST = 0.35,
+  MANUAL_ALONG_RELIEF = 0.85,
+  AXIS_VARY_AMP = 0.22,
+  AXIS_VARY_FREQ = 0.35,
+  ARC_AMP = 0.14,
+  ARC_FREQ = 0.9,
+  ARC_NEAR = 18.0,
+  ARC_FAR = 80.0,
+  TARGET_GRACE_TIME = 0.30,
+  TARGET_GRACE_STILL = 0.60,
+  VIS_GRACE_TIME = 0.30,
+  TARGET_SWITCH_MARGIN = 6.0,
+  TARGET_KEEP_BONUS = 5.0,
   AIM_POINT_MODE = "Dynamic",
-  AIM_REGION_COUNT = 5, AIM_REGION_JITTER = 0.06,
-  AIM_REGION_SWITCH = 4.0, AIM_REGION_SWITCH_J = 0.6, AIM_REGION_CURVE_BIAS = 0.5,
-  AIM_LATERAL_ENABLE = false, AIM_LATERAL_AMP = 0.22, AIM_LATERAL_FREQ = 0.45,
-  AIM_LATERAL_TAU = 0.28, AIM_LATERAL_HYST = 0.03,
-
-  AIM_ROOT_OFFSET_Y = 1.6, AIM_HEAD_OFFSET_Y = 0.3, AIM_FOOT_OFFSET_Y = -2.5,
-  AIM_HEIGHT_SMOOTH_TAU = 0.08, AIM_HEIGHT_CURVE_BIAS = 0.5,
-  AIM_PROX_RADIUS_MULT = 1.5, AIM_PROX_RADIUS_MIN = 60.0, AIM_CENTER_FALLBACK = 0.5,
-  AIM_ANCHOR_HEIGHT = 0.3,
-
-  DEADZONE_ENABLE = true, DEADZONE_RADIUS = 5.0, DEADZONE_MIN_SCALE = 0.12,
-
-  USER_MOVE_REDUCE_ENABLE = true, USER_MOVE_VEL_THRESH = 500.0, USER_MOVE_SCALE = 0.10,
-  USER_MOVE_ATTACK_TAU = 0.015, USER_MOVE_RELEASE_TAU = 0.10, USER_MOVE_MIN_INFLUENCE = 0.25,
-
-  USER_YANK_ENABLE = true, USER_YANK_VEL_THRESH = 1400.0, USER_YANK_DOT_THRESH = -0.55,
-  USER_YANK_TIME = 0.22, USER_YANK_SCALE = 0.08,
-
-  USER_INPUT_PRIORITY_ENABLE = true,
-  USER_INPUT_PRIORITY_MIN_SPEED = 20, USER_INPUT_PRIORITY_MAX_SPEED = 150,
-  USER_INPUT_PRIORITY_OVERRIDE = 0.06, USER_INPUT_PRIORITY_ATTACK = 0.02,
-  USER_INPUT_PRIORITY_RELEASE = 0.15, USER_INPUT_FULL_STOP_THRESHOLD = 0.7,
-
-  PRED_STILL_CUTOFF = true, PRED_STILL_VEL = 3.0,
-  FLICK_CURVE_ENABLE = true, FLICK_CURVE_AMOUNT = 0.40,
-
-  STICKY_ENABLE = true, STICKY_OUT_OF_FOV_TIME = 999.0, STICKY_FAST_EXTRA = 0.80,
-  STICKY_FAST_VEL_MIN = 8.0, STICKY_FAST_VEL_MAX = 35.0,
-  STICKY_YANK_ENABLE = false, STICKY_YANK_PIXELS = 250.0,
-  STICKY_YANK_TIME = 0.10, STICKY_YANK_DROP_TIME = 0.15,
-
-  TAU_REACT = 0.06, TAU_LOST = 0.30,
-
-  SPRING_TAU = 0.030, SPRING_ZETA = 1.00, SPRING_OMEGA_SMOOTH = 0.20,
-  SPRING_OUTPUT_GAIN = 1.45, SPRING_VEL_SMOOTH_TAU = 0.014,
-  SPRING_VEL_MAX_DELTA = 30000, ZETA_SMOOTH_TAU = 0.18, TOTAL_BOOST_CAP = 3.20,
-
-  TARGET_SPEED_ADAPT_ENABLE = true, TARGET_SPEED_BOOST_MIN = 3.0,
-  TARGET_SPEED_BOOST_MAX = 55.0, TARGET_SPEED_BOOST_AMT = 1.20,
-  PROXIMITY_ADAPT_ENABLE = true, PROXIMITY_BOOST_RANGE = 40.0, PROXIMITY_BOOST_AMT = 0.90,
-
-  ARRIVAL_DAMP_ENABLE = true, ARRIVAL_DAMP_RANGE = 5.0, ARRIVAL_DAMP_STR = 0.06,
-  MICRO_ADJUST_ENABLE = true, MICRO_ADJUST_RANGE = 6.0,
-  MICRO_ADJUST_GAIN_X = 0.10, MICRO_ADJUST_GAIN_Y = 0.08,
-
-  SURFACE_PREDICT_ENABLE = true, SURFACE_PREDICT_MARGIN = 1.5,
-  SURFACE_PREDICT_MAX_CAST = 60.0, SURFACE_PREDICT_VEL_MIN = 4.0,
-  SURFACE_PREDICT_GROUND_ENABLE = true, SURFACE_PREDICT_GROUND_MARGIN = 1.0,
-
-  GAIT_ENABLE = true, GAIT_PERIOD_MIN = 0.22, GAIT_PERIOD_MAX = 0.48,
-  GAIT_CURVE_DEPTH = 0.35, GAIT_PAUSE_CHANCE = 0.10,
-
-  MICRO_PAUSE_ENABLE = true, MICRO_PAUSE_TIMER_MIN = 0.80, MICRO_PAUSE_TIMER_MAX = 1.90,
-  MICRO_PAUSE_HOLD_MIN = 0.030, MICRO_PAUSE_HOLD_MAX = 0.080,
-  MICRO_PAUSE_CHANCE = 0.12, MICRO_PAUSE_SCALE = 0.45,
-
-  CLOSE_SNAP_ENABLE = true, CLOSE_SNAP_RANGE = 10.0,
-  CLOSE_SNAP_K_MULT = 1.15, CLOSE_SNAP_OM_MULT = 1.10,
-
-  SPRING_SPEED_MOD_AMP = 0.18, SPRING_SPEED_MOD_FREQ = 1.20,
-  SPRING_ZETA_MOD_AMP = 0.08, SPRING_ZETA_MOD_FREQ = 1.50,
-
-  DOUBLE_TAP_ENABLE = true, DOUBLE_TAP_MIN_INTERVAL = 0.80, DOUBLE_TAP_MAX_INTERVAL = 1.80,
-  DOUBLE_TAP_CHANCE = 0.08, DOUBLE_TAP_AMP = 0.04, DOUBLE_TAP_TAU = 0.055,
-  CLOSE_ZETA_BOOST = 0.15, CLOSE_ZETA_RANGE = 5.0,
-
-  FLICK_ENABLE = true, FLICK_ERR_MIN = 15.0, FLICK_ERR_FAR = 70.0,
-  FLICK_GAIN = 0.35, FLICK_RAMP = 0.180, FLICK_COOLDOWN = 0.26,
-  FLICK_WOBBLE_AMP = 0.10, FLICK_SPEED_MULT = 7.5, FLICK_TRIGGER_CHANCE = 0.32,
-  FLICK_MAX_MAG = 70.0,
-
-  SMART_FLICK_ENABLE = true, SMART_FLICK_MIN_CONF = 0.65, SMART_FLICK_MIN_TGT_VEL = 5.5,
-  SMART_FLICK_MIN_ERR = 10.0, SMART_FLICK_MAX_ERR = 110.0,
-  SMART_FLICK_LEAD_TIME = 0.15, SMART_FLICK_FLICK_TIME = 0.260,
-  SMART_FLICK_FLICK_SPEED = 3.5, SMART_FLICK_HOLD_TIME = 0.180,
-  SMART_FLICK_HOLD_SCALE = 0.18, SMART_FLICK_RESUME_DIST = 13.0,
-  SMART_FLICK_COOLDOWN = 0.48, SMART_FLICK_TRIGGER_CHANCE = 0.22,
-  SMART_FLICK_VEL_SMOOTH_TAU = 0.080, SMART_FLICK_WOBBLE_AMP = 0.10,
-  SMART_FLICK_MAX_LEAD_RATIO = 0.65, SMART_FLICK_MAX_MAG = 90.0,
+  AIM_ROOT_OFFSET_Y = 1.6,
+  AIM_HEAD_OFFSET_Y = 0.3,
+  AIM_FOOT_OFFSET_Y = -2.5,
+  AIM_HEIGHT_SMOOTH_TAU = 0.10,
+  AIM_HEIGHT_CURVE_BIAS = 0.5,
+  AIM_PROX_RADIUS_MULT = 1.5,
+  AIM_PROX_RADIUS_MIN = 60.0,
+  AIM_CENTER_FALLBACK = 0.5,
+  AIM_CENTER_T = 0.34,
+  AIM_BAND_HALF = 0.10,
+  AIM_VARY_AMP = 0.06,
+  AIM_VARY_FREQ = 0.22,
+  AIM_ACQ_JITTER_T = 0.05,
+  AIM_FOLLOW_CURSOR = 0.55,
+  AIM_HEAD_T = 0.07,
+  AIM_LATERAL_VARY = 0.22,
+  DEADZONE_ENABLE = true,
+  DEADZONE_RADIUS = 10.0,
+  DEADZONE_MIN_SCALE = 0.12,
+  SEP_LAT_ALPHA = 0.08,
+  SEP_DEADBAND_MIN = 0.9,
+  SEP_DEADBAND_REL = 0.08,
+  SEP_K_SAMPLES = 24,
+  SEP_K_MIN_RAW = 3.0,
+  SEP_PITCH_LIMIT = 1.35,
+  SEP_GAME_DEAD_RAD = 0.00035,
+  GAME_PITCH_TAU = 0.05,
+  USER_MOVE_ALONG_RELIEF = 0.95,
+  USER_MOVE_REDUCE_ENABLE = true,
+  USER_MOVE_VEL_THRESH = 120.0,
+  USER_MOVE_SCALE = 0.05,
+  USER_MOVE_ATTACK_TAU = 0.015,
+  USER_MOVE_RELEASE_TAU = 0.10,
+  USER_MOVE_MIN_INFLUENCE = 0.06,
+  USER_YANK_ENABLE = true,
+  USER_YANK_VEL_THRESH = 1300.0,
+  USER_YANK_DOT_THRESH = -0.55,
+  USER_YANK_TIME = 0.25,
+  USER_YANK_SCALE = 0.05,
+  PRED_STILL_CUTOFF = true,
+  PRED_STILL_VEL = 3.5,
+  FLICK_CURVE_ENABLE = true,
+  FLICK_CURVE_AMOUNT = 0.40,
+  STICKY_ENABLE = true,
+  STICKY_OUT_OF_FOV_TIME = 6.0,
+  STICKY_FAST_EXTRA = 2.0,
+  STICKY_FAST_VEL_MIN = 8.0,
+  STICKY_FAST_VEL_MAX = 35.0,
+  STICKY_YANK_ENABLE = true,
+  STICKY_YANK_PIXELS = 250.0,
+  STICKY_YANK_TIME = 0.10,
+  STICKY_YANK_DROP_TIME = 0.15,
+  ENGAGE_ENABLE = false,
+  ACQUIRE_PULSE_ENABLE = false,
+  TAU_REACT = 0.08,
+  TAU_LOST = 0.35,
+  SPRING_TAU = 0.040,
+  SPRING_ZETA = 1.00,
+  SPRING_OMEGA_SMOOTH = 0.10,
+  SPRING_OUTPUT_GAIN = 1.15,
+  SPRING_VEL_SMOOTH_TAU = 0.016,
+  SPRING_VEL_MAX_DELTA = 30000,
+  ZETA_SMOOTH_TAU = 0.20,
+  TOTAL_BOOST_CAP = 2.50,
+  TARGET_SPEED_ADAPT_ENABLE = true,
+  TARGET_SPEED_BOOST_MIN = 5.0,
+  TARGET_SPEED_BOOST_MAX = 28.0,
+  TARGET_SPEED_BOOST_AMT = 0.45,
+  PROXIMITY_ADAPT_ENABLE = true,
+  PROXIMITY_BOOST_RANGE = 35.0,
+  PROXIMITY_BOOST_AMT = 0.15,
+  SURFACE_PREDICT_ENABLE = true,
+  SURFACE_PREDICT_MARGIN = 1.5,
+  SURFACE_PREDICT_MAX_CAST = 60.0,
+  SURFACE_PREDICT_VEL_MIN = 5.0,
+  SURFACE_PREDICT_GROUND_ENABLE = true,
+  SURFACE_PREDICT_GROUND_MARGIN = 1.0,
+  GAIT_ENABLE = true,
+  GAIT_PERIOD_MIN = 0.22,
+  GAIT_PERIOD_MAX = 0.48,
+  GAIT_CURVE_DEPTH = 0.45,
+  GAIT_PAUSE_CHANCE = 0.12,
+  MICRO_PAUSE_ENABLE = true,
+  MICRO_PAUSE_TIMER_MIN = 0.80,
+  MICRO_PAUSE_TIMER_MAX = 1.90,
+  MICRO_PAUSE_HOLD_MIN = 0.040,
+  MICRO_PAUSE_HOLD_MAX = 0.100,
+  MICRO_PAUSE_CHANCE = 0.15,
+  MICRO_PAUSE_SCALE = 0.35,
+  CLOSE_SNAP_ENABLE = true,
+  CLOSE_SNAP_RANGE = 12.0,
+  CLOSE_SNAP_K_MULT = 1.0,
+  CLOSE_SNAP_OM_MULT = 1.0,
+  SPRING_SPEED_MOD_AMP = 0.20,
+  SPRING_SPEED_MOD_FREQ = 1.20,
+  SPRING_ZETA_MOD_AMP = 0.10,
+  SPRING_ZETA_MOD_FREQ = 1.50,
+  DOUBLE_TAP_ENABLE = true,
+  DOUBLE_TAP_MIN_INTERVAL = 0.80,
+  DOUBLE_TAP_MAX_INTERVAL = 1.80,
+  DOUBLE_TAP_CHANCE = 0.10,
+  DOUBLE_TAP_AMP = 0.05,
+  DOUBLE_TAP_TAU = 0.055,
+  CLOSE_ZETA_BOOST = 0.15,
+  CLOSE_ZETA_RANGE = 5.0,
+  FLICK_ENABLE = true,
+  FLICK_ERR_MIN = 10.0,
+  FLICK_ERR_FAR = 70.0,
+  FLICK_GAIN = 0.40,
+  FLICK_RAMP = 0.130,
+  FLICK_COOLDOWN = 0.22,
+  FLICK_WOBBLE_AMP = 0.16,
+  FLICK_SPEED_MULT = 10.0,
+  FLICK_TRIGGER_CHANCE = 0.35,
+  SMART_FLICK_ENABLE = true,
+  SMART_FLICK_MIN_CONF = 0.70,
+  SMART_FLICK_MIN_TGT_VEL = 6.0,
+  SMART_FLICK_MIN_ERR = 10.0,
+  SMART_FLICK_MAX_ERR = 100.0,
+  SMART_FLICK_LEAD_TIME = 0.18,
+  SMART_FLICK_FLICK_TIME = 0.200,
+  SMART_FLICK_FLICK_SPEED = 6.0,
+  SMART_FLICK_HOLD_TIME = 0.180,
+  SMART_FLICK_HOLD_SCALE = 0.10,
+  SMART_FLICK_RESUME_DIST = 14.0,
+  SMART_FLICK_COOLDOWN = 0.55,
+  SMART_FLICK_TRIGGER_CHANCE = 0.28,
+  SMART_FLICK_VEL_SMOOTH_TAU = 0.100,
+  SMART_FLICK_WOBBLE_AMP = 0.12,
+  SMART_FLICK_MAX_LEAD_RATIO = 0.60,
   FLICK_LOCK_SHARED = true,
-
-  RETURN_PULSE_ENABLE = true, RETURN_PULSE_MIN_ERR = 12.0, RETURN_PULSE_PAUSE = 0.035,
-  RETURN_PULSE_DURATION = 0.060, RETURN_PULSE_GAIN = 0.48, RETURN_PULSE_SPEED = 18.0,
-  RETURN_PULSE_COOLDOWN = 0.12, RETURN_PULSE_PAUSE_SCALE = 0.12,
-  RETURN_PULSE_HIT_RANGE = 2.0, RETURN_PULSE_HIT_WINDOW = 0.20,
-  RETURN_PULSE_NEAR_SKIP = 5.0, RETURN_PULSE_NEAR_FADE = 20.0,
-
-  HUMANIZE_ENABLE = true, HUMAN_CURVE_AMP = 1.10, HUMAN_CURVE_FREQ = 0.55,
-  HUMAN_WOBBLE_AMP = 0.10, HUMAN_WOBBLE_FREQ = 10.0, HUMAN_WOBBLE_RANGE = 18.0,
-  HUMAN_SETTLE_ZETA = 0.92, HUMAN_MAINTAIN_ZETA = 1.00, HUMAN_SETTLE_RANGE = 25.0,
-  HUMAN_RESIDUAL_AMP = 0.060, HUMAN_RESIDUAL_FREQ = 5.5,
-
-  LIVE_TRACK_ENABLE = true, LIVE_TARGET_VEL_THRESH = 4.0, LIVE_SPRING_MIN_VEL = 0.05,
-  LIVE_DIR_CHANGE_BOOST = 1.30, LIVE_DIR_CHANGE_DOT = 0.55, LIVE_DIR_CHANGE_TAU = 0.10,
-  LIVE_DIR_STILL_OM = 0.40, LIVE_STILL_TARGET_VEL = 8.0,
-
-  DIR_REACTION_DELAY = 0.100, DIR_LOOKAHEAD_ENABLE = true,
-  DIR_LOOKAHEAD_TIME = 0.14, DIR_LOOKAHEAD_MAX_ERR = 45.0, DIR_LOOKAHEAD_GAIN = 0.42,
-
-  PULSE_ENABLE = true, PULSE_MIN = 14.0, PULSE_MAX = 30.0, PULSE_GAIN = 0.05,
-  PULSE_FREQ = 2.5, PULSE_RAMP = 0.070, PULSE_SPEED_MULT = 20.0,
-  PULSE_RAMP_JITTER = 0.40, PULSE_SPEED_MULT_JITTER = 0.30,
-  PULSE_MAG_JITTER = 0.30, PULSE_CURVE_ASYM = 0.25,
-  PULSE_DIR_WOBBLE = 0.14, PULSE_ATTACK_FRAC = 0.20,
-
-  REACT_DELAY_MIN = 0.015, REACT_DELAY_MAX = 0.035,
-  REACT_STILL_MIN = 0.010, REACT_STILL_MAX = 0.028,
-  STILL_MICRO_SCALE = 0.03, STILL_VEL_THRESH = 3.0,
-
-  MANUAL_CUT_START = 0.50, MANUAL_CUT_FULL = 0.95,
-  MANUAL_CUT_SMOOTH_TAU = 0.100, MANUAL_CUT_MAX = 0.40, CUT_VEL_DAMP_RATE = 1.5,
-
+  RETURN_PULSE_ENABLE = true,
+  RETURN_PULSE_MIN_ERR = 8.0,
+  RETURN_PULSE_PAUSE = 0.055,
+  RETURN_PULSE_DURATION = 0.080,
+  RETURN_PULSE_GAIN = 0.25,
+  RETURN_PULSE_SPEED = 14.0,
+  RETURN_PULSE_COOLDOWN = 0.20,
+  RETURN_PULSE_PAUSE_SCALE = 0.15,
+  RETURN_PULSE_HIT_RANGE = 3.0,
+  RETURN_PULSE_HIT_WINDOW = 0.20,
+  RETURN_PULSE_NEAR_SKIP = 5.0,
+  RETURN_PULSE_NEAR_FADE = 20.0,
+  HUMANIZE_ENABLE = true,
+  HUMAN_CURVE_AMP = 1.60,
+  HUMAN_CURVE_FREQ = 0.55,
+  HUMAN_WOBBLE_AMP = 0.14,
+  HUMAN_WOBBLE_FREQ = 10.0,
+  HUMAN_WOBBLE_RANGE = 18.0,
+  HUMAN_SETTLE_ZETA = 0.95,
+  HUMAN_MAINTAIN_ZETA = 1.02,
+  HUMAN_SETTLE_RANGE = 25.0,
+  HUMAN_RESIDUAL_AMP = 0.080,
+  HUMAN_RESIDUAL_FREQ = 5.5,
+  LIVE_TRACK_ENABLE = true,
+  LIVE_TARGET_VEL_THRESH = 4.0,
+  LIVE_SPRING_MIN_VEL = 0.05,
+  LIVE_DIR_CHANGE_BOOST = 1.10,
+  LIVE_DIR_CHANGE_DOT = 0.55,
+  LIVE_DIR_CHANGE_TAU = 0.20,
+  LIVE_DIR_STILL_OM = 1.00,
+  LIVE_STILL_TARGET_VEL = 8.0,
+  DIR_REACTION_DELAY = 0.220,
+  DIR_LOOKAHEAD_ENABLE = true,
+  DIR_LOOKAHEAD_TIME = 0.10,
+  DIR_LOOKAHEAD_MAX_ERR = 40.0,
+  DIR_LOOKAHEAD_GAIN = 0.25,
+  PULSE_ENABLE = true,
+  PULSE_MIN = 12.0,
+  PULSE_MAX = 30.0,
+  PULSE_GAIN = 0.03,
+  PULSE_FREQ = 2.5,
+  PULSE_RAMP = 0.070,
+  PULSE_SPEED_MULT = 20.0,
+  PULSE_RAMP_JITTER = 0.40,
+  PULSE_SPEED_MULT_JITTER = 0.30,
+  PULSE_MAG_JITTER = 0.30,
+  PULSE_CURVE_ASYM = 0.25,
+  PULSE_DIR_WOBBLE = 0.14,
+  PULSE_ATTACK_FRAC = 0.20,
+  REACT_DELAY_MIN = 0.100,
+  REACT_DELAY_MAX = 0.160,
+  REACT_STILL_MIN = 0.070,
+  REACT_STILL_MAX = 0.110,
+  STILL_MICRO_SCALE = 0.15,
+  STILL_VEL_THRESH = 3.0,
+  MANUAL_CUT_START = 0.50,
+  MANUAL_CUT_FULL = 0.95,
+  MANUAL_CUT_SMOOTH_TAU = 0.100,
+  MANUAL_CUT_MAX = 0.70,
+  CUT_VEL_DAMP_RATE = 1.5,
   AIM_DRIFT_AMP_X = 0.055, AIM_DRIFT_AMP_Y = 0.045, AIM_DRIFT_FREQ = 0.40,
   AIM_DRIFT_FREQ_MOD = 0.40, AIM_DRIFT_RANGE = 20.0, AIM_DRIFT_NEAR_MULT = 0.60,
-
   IDLE_MICRO_AMP = 0.060, IDLE_MICRO_X_SCALE = 0.65, IDLE_MICRO_FREQ_BASE = 3.8,
   IDLE_MICRO_FREQ_MOD_AMP = 0.35, IDLE_MICRO_FREQ_MOD_SPEED = 0.22,
-  IDLE_MICRO_AMP_MOD_AMP = 0.40, IDLE_MICRO_AMP_MOD_SPEED = 0.35, IDLE_MICRO_TARGET_RANGE = 9.0,
-
+  IDLE_MICRO_AMP_MOD_AMP = 0.40, IDLE_MICRO_AMP_MOD_SPEED = 0.35,
+  IDLE_MICRO_TARGET_RANGE = 9.0,
   BREATH_AMP_Y = 0.070, BREATH_AMP_X = 0.050, BREATH_AMP_Z = 0.055,
   BREATH_FREQ_Y = 1.75, BREATH_FREQ_X = 1.10, BREATH_FREQ_Z = 0.80,
   BREATH_VEL_THRESH = 9.0, BREATH_FREQ_MOD_AMP = 0.20, BREATH_NEAR_SCALE = 9.0,
-
   VERT_UP_ZETA_MULT = 0.95, VERT_DOWN_ZETA_MULT = 1.15,
-  VERT_UP_OMEGA_MULT = 1.30, VERT_DOWN_OMEGA_MULT = 1.00,
+  VERT_UP_OMEGA_MULT = 1.35, VERT_DOWN_OMEGA_MULT = 0.95,
   VERT_EASE_ENABLE = true, VERT_EASE_FAR_DIST = 120.0, VERT_EASE_NEAR_DIST = 6.0,
   VERT_EASE_FAR_MULT = 0.95, VERT_EASE_MID_MULT = 1.05, VERT_EASE_NEAR_MULT = 0.95,
-  VERT_MICRO_AMP = 0.028, VERT_MICRO_FREQ_BASE = 4.2, VERT_MICRO_FREQ_MOD = 0.30,
-  VERT_MICRO_RANGE = 12.0, VERT_ERRCAP_MULT = 0.90, VERT_VELCAP_MULT = 0.95,
-
-  TREMOR_AMP = 0.035, TREMOR_FREQ = 9.5, TREMOR_FREQ_MOD_AMP = 0.15,
+  VERT_MICRO_AMP = 0.055, VERT_MICRO_FREQ_BASE = 4.2, VERT_MICRO_FREQ_MOD = 0.30,
+  VERT_MICRO_RANGE = 12.0, VERT_ERRCAP_MULT = 0.85, VERT_VELCAP_MULT = 0.90,
+  TREMOR_AMP = 0.060, TREMOR_FREQ = 9.5, TREMOR_FREQ_MOD_AMP = 0.15,
   TREMOR_AMP_MOD_SPEED = 0.6, TREMOR_ACTIVE_RANGE = 60.0, TREMOR_NEAR_SCALE = 10.0,
-
-  SACCADE_AMP = 0.22, SACCADE_X_SCALE = 0.5, SACCADE_MIN_INTERVAL = 0.60,
+  SACCADE_AMP = 0.45, SACCADE_X_SCALE = 0.5, SACCADE_MIN_INTERVAL = 0.60,
   SACCADE_MAX_INTERVAL = 2.00, SACCADE_DECAY_TAU = 0.08, SACCADE_ACTIVE_RANGE = 45.0,
   SACCADE_CHANCE = 0.55, SACCADE_NEAR_SCALE = 10.0,
-
-  PRED_DECAY_TAU = 0.28, PRED_SAMPLE_MAX_JUMP = 14.0, PRED_SAMPLE_MAX_VEL = 90.0,
-  PRED_INST_SPIKE_RATIO = 2.3, PRED_TP_RESET_TIME = 0.28,
-  PRED_HIST_SAMPLE_MIN_DT = 0.004, PRED_VEL_EMA_TAU = 0.030,
-
+  PRED_DECAY_TAU = 0.45, PRED_SAMPLE_MAX_JUMP = 14.0, PRED_SAMPLE_MAX_VEL = 90.0,
+  PRED_INST_SPIKE_RATIO = 2.3, PRED_TP_RESET_TIME = 0.45,
+  PRED_HIST_SAMPLE_MIN_DT = 0.004, PRED_VEL_EMA_TAU = 0.090,
   AIM_ANCHOR_HEIGHT = 0.3,
-
-  ANTI_BOUNCE_ENABLE = true, ANTI_BOUNCE_RANGE = 12.0, ANTI_BOUNCE_DOT = 0.02,
-  ANTI_BOUNCE_KILL = 0.005, ANTI_BOUNCE_CLOSE_RANGE = 4.0,
-  ANTI_BOUNCE_CLOSE_KILL = 0.010, ANTI_BOUNCE_X_MULT = 0.5, ANTI_BOUNCE_Y_MULT = 0.5,
-
-  VEL_ERROR_CAP_ENABLE = true, VEL_ERROR_CAP = 2.20, VEL_ERROR_CAP_CLOSE = 1.90,
-
-  PRED_INERTIA_TAU = 0.090, PRED_INERTIA_VAR = 0.15,
-  PRED_INERTIA_FAST_TAU = 0.045, PRED_INERTIA_FAST_VEL = 30.0,
-
-  SWITCH_BLEND_TIME = 0.100,
-
-  PRED_LEAD = 1.50, PRED_MAX = 26.0, PRED_W_INSTANT = 0.65,
-  PRED_W_HISTORY = 1.20, PRED_W_ADAPT = 1.00, PRED_MIN_VEL = 3.0,
-  PRED_MAX_VEL = 100.0, PRED_CURVE = 1.05, PRED_RAMP_TAU = 0.060,
-  PRED_HISTORY = 50, PRED_DIR_CONSISTENCY_TAU = 0.12,
-  PRED_CONSISTENCY_MIN = 0.50, PRED_STABLE_TIME = 0.10,
-  PRED_VARIANCE_MAX = 7.0, PRED_DIR_STABLE_MIN = 0.55,
-  PRED_VAR_MIN = 0.95, PRED_VAR_MAX = 1.25,
-
-  PRED_CONFIDENCE_MIN = 0.60, PRED_CONFIDENCE_SMOOTH_TAU = 0.030,
-  PRED_CONFIDENCE_VAR_PENALTY = 8.0, PRED_CONFIDENCE_CONSIST_PENALTY = 1.2,
-  PRED_CONFIDENCE_DIRCHANGE_PENALTY = 0.80,
-
+  ANTI_BOUNCE_ENABLE = true,
+  ANTI_BOUNCE_RANGE = 18.0,
+  ANTI_BOUNCE_DOT = 0.02,
+  ANTI_BOUNCE_KILL = 0.02,
+  ANTI_BOUNCE_CLOSE_RANGE = 6.0,
+  ANTI_BOUNCE_CLOSE_KILL = 0.04,
+  ANTI_BOUNCE_X_MULT = 0.5,
+  ANTI_BOUNCE_Y_MULT = 0.5,
+  VEL_ERROR_CAP_ENABLE = true,
+  VEL_ERROR_CAP = 1.80,
+  VEL_ERROR_CAP_CLOSE = 1.55,
+  PRED_INERTIA_TAU = 0.280, PRED_INERTIA_VAR = 0.20,
+  PRED_INERTIA_FAST_TAU = 0.140, PRED_INERTIA_FAST_VEL = 30.0,
+  SWITCH_BLEND_TIME = 0.180,
+  PRED_LEAD = 0.85, PRED_MAX = 14.0,
+  PRED_W_INSTANT = 0.40, PRED_W_HISTORY = 1.20, PRED_W_ADAPT = 1.00,
+  PRED_MIN_VEL = 4.5, PRED_MAX_VEL = 55.0, PRED_CURVE = 1.20,
+  PRED_RAMP_TAU = 0.220, PRED_HISTORY = 50,
+  PRED_DIR_CONSISTENCY_TAU = 0.20, PRED_CONSISTENCY_MIN = 0.55, PRED_STABLE_TIME = 0.15,
+  PRED_VARIANCE_MAX = 6.0, PRED_DIR_STABLE_MIN = 0.60,
+  PRED_VAR_MIN = 0.85, PRED_VAR_MAX = 1.15,
+  PRED_CONFIDENCE_MIN = 0.52,
+  PRED_CONFIDENCE_SMOOTH_TAU = 0.095,
+  PRED_CONFIDENCE_VAR_PENALTY = 8.0,
+  PRED_CONFIDENCE_CONSIST_PENALTY = 1.2,
+  PRED_CONFIDENCE_DIRCHANGE_PENALTY = 0.70,
   PRED_CLOSE_ENABLE = true, PRED_CLOSE_NEAR = 45.0, PRED_CLOSE_FAR = 110.0,
-  PRED_CLOSE_MIN_SCALE = 0.28, PRED_FLIP_FAST_TAU = 0.030, PRED_FLIP_PRED_MIN = 0.35,
-
-  PRED_Y_ENABLE = true, PRED_Y_JUMP_DETECT_VEL = 15.0,
-  PRED_Y_APEX_RATIO = 0.35, PRED_Y_PULSE_RISE = 0.12,
-  PRED_Y_PULSE_FALL = 0.30, PRED_Y_PULSE_AMP = 1.4, PRED_Y_SMOOTH_TAU = 0.035,
-
-  HITBOX_SUBZONE_ENABLE = true, HITBOX_SUBZONE_RATIO = 0.55,
-  HITBOX_SUBZONE_CHANGE_MIN = 0.4, HITBOX_SUBZONE_CHANGE_MAX = 1.0,
+  PRED_CLOSE_MIN_SCALE = 0.15,
+  PRED_FLIP_FAST_TAU = 0.05, PRED_FLIP_PRED_MIN = 0.35,
+  PRED_Y_ENABLE = true,
+  PRED_Y_JUMP_DETECT_VEL = 15.0, PRED_Y_APEX_RATIO = 0.35,
+  PRED_Y_PULSE_RISE = 0.14, PRED_Y_PULSE_FALL = 0.34,
+  PRED_Y_PULSE_AMP = 1.2, PRED_Y_SMOOTH_TAU = 0.050,
+  HITBOX_SUBZONE_ENABLE = true,
+  HITBOX_SUBZONE_RATIO = 0.55,
+  HITBOX_SUBZONE_CHANGE_MIN = 0.4,
+  HITBOX_SUBZONE_CHANGE_MAX = 1.0,
   HITBOX_SUBZONE_TAU = 0.18,
-
-  SPEED_SOFT_KNEE = 380.0, SPEED_SOFT_CAP = 900.0, SPEED_HARD_CAP = 1800.0,
-  SPEED_SOFT_STR = 0.08, ERRCAP_ENABLE = true, ERRCAP_FACTOR = 2.30,
-  ERRCAP_MIN = 10.0, ERRCAP_CLOSE_RANGE = 20.0, ERRCAP_CLOSE_FACTOR = 2.00,
-
-  TP_DETECT = true, TP_JUMP_STUDS = 20.0, TP_ASSIST_REDUCE = 0.50,
-  TP_TAU = 0.25, TP_VEL_THRESH = 100.0,
-
-  AIM_SPOT_HEAD = 0.025, AIM_SPOT_TORSO = 0.035, AIM_SPOT_TAU = 1.1,
-  AIM_SPOT_MIN_T = 1.2, AIM_SPOT_MAX_T = 2.5, AIM_SPOT_NOISE = 0.003,
-  AIM_SPOT_NOISE_SPEED = 0.05,
-
-  MANUAL_DEADZONE = 20, MANUAL_FULL_SPEED = 100, MANUAL_MAX_INFLUENCE = 1.0,
-  MANUAL_TAU_IN = 0.040, MANUAL_TAU_OUT = 0.150, MANUAL_HOLD_TIME = 0.08,
-  MANUAL_PEAK_WINDOW = 0.35, MANUAL_DOWN_THRESH = 500, MANUAL_DOWN_MAX = 0.05,
+  SPEED_SOFT_KNEE = 260.0, SPEED_SOFT_CAP = 600.0, SPEED_HARD_CAP = 1000.0, SPEED_SOFT_STR = 0.12,
+  ERRCAP_ENABLE = true, ERRCAP_FACTOR = 1.70, ERRCAP_MIN = 8.0,
+  ERRCAP_CLOSE_RANGE = 20.0, ERRCAP_CLOSE_FACTOR = 1.50,
+  TP_DETECT = true, TP_JUMP_STUDS = 20.0, TP_ASSIST_REDUCE = 0.65, TP_TAU = 0.35, TP_VEL_THRESH = 100.0,
+  AIM_SPOT_HEAD = 0.025, AIM_SPOT_TORSO = 0.035, AIM_SPOT_TAU = 1.4,
+  AIM_SPOT_MIN_T = 1.2, AIM_SPOT_MAX_T = 2.5, AIM_SPOT_NOISE = 0.003, AIM_SPOT_NOISE_SPEED = 0.05,
+  MANUAL_DEADZONE = 20,
+  MANUAL_FULL_SPEED = 100,
+  MANUAL_MAX_INFLUENCE = 1.0,
+  MANUAL_TAU_IN = 0.040,
+  MANUAL_TAU_OUT = 0.150,
+  MANUAL_HOLD_TIME = 0.08,
+  MANUAL_PEAK_WINDOW = 0.35,
+  MANUAL_DOWN_THRESH = 500, MANUAL_DOWN_MAX = 0.05,
   MANUAL_DOWN_TAU_IN = 0.030, MANUAL_DOWN_TAU_OUT = 0.20,
-
   NOISE_AMP_X = 0.0015, NOISE_AMP_Y = 0.0013, NOISE_SPEED_X = 0.35, NOISE_SPEED_Y = 0.35,
-  JITTER_AMP_X = 0.13, JITTER_AMP_Y = 0.13, JITTER_FREQ = 22.0,
+  JITTER_AMP_X = 0.15, JITTER_AMP_Y = 0.15, JITTER_FREQ = 22.0,
   NOISE_VAR_MIN = 0.60, NOISE_VAR_MAX = 1.40,
-
-  MOUSE_MIN_MAG = 3, MOUSE_MAX_MAG = 250, MOUSE_DT_MIN = 0.005,
-  MOUSE_SPEED_CAP = 6000, MOUSE_SMOOTH_TAU = 0.07,
-  MOUSE_ADAPT_THR_MULT = 0.55, MOUSE_ADAPT_THR_MAX = 16,
-
-  LOST_SPRING_DAMP = 1.20, LOST_DECAY_TAU = 0.14,
-  LOST_CLEANUP_TIME = 0.35, LOST_COAST_TIME = 0.22,
-
+  MOUSE_MIN_MAG = 3,
+  MOUSE_MAX_MAG = 250,
+  MOUSE_DT_MIN = 0.005,
+  MOUSE_SPEED_CAP = 6000,
+  MOUSE_SMOOTH_TAU = 0.08,
+  MOUSE_ADAPT_THR_MULT = 0.55,
+  MOUSE_ADAPT_THR_MAX = 16,
+  LOST_SPRING_DAMP = 0.90,
+  LOST_DECAY_TAU = 0.22,
+  LOST_CLEANUP_TIME = 0.35,
+  LOST_COAST_TIME = 0.22,
   JUDGE_KEYWORDS = {"Judge", "JUDGE", "judge"},
   NPC_CACHE = 0.4,
   NPC_PATHS = {
     {"NPCs", "Hostile"}, {"ActiveTasks", "Location"},
-    {"ActiveTasks", "Location", "AliveEnemies"},
-    {"WaveSurvival", "NPCs"}, {"NPCs", "Custom"},
+    {"ActiveTasks", "Location", "AliveEnemies"}, {"WaveSurvival", "NPCs"}, {"NPCs", "Custom"},
   },
-
-  OCCLUSION_TRACK_ENABLE = false, OCCLUSION_MAX_TIME = 1.6, OCCLUSION_MIN_VEL = 6.0,
-  OCCLUSION_CONSISTENCY_MIN = 0.78, OCCLUSION_VARIANCE_MAX = 1.2, OCCLUSION_DEVIATION_MAX = 6.0,
-
-  SOFT_RELEASE_ENABLE = true, SOFT_RELEASE_START = 260, SOFT_RELEASE_FULL = 720,
-  SOFT_RELEASE_MAX = 0.24, SOFT_RELEASE_ATTACK = 0.03, SOFT_RELEASE_DECAY = 0.15,
-
-  RELEASE_MAX_PIXELS = 32, RELEASE_INIT_FADE = 0.55,
-
-  AIM_BLEND_ENABLE = true, AIM_BLEND_SIGMA = 40.0, AIM_BLEND_CUTOFF_MULT = 3.0,
-
-  AIM_SMOOTH_ENABLE = true, AIM_SMOOTH_TAU = 0.050,
-
-  PART_SNAP_ENABLE = true, PART_SNAP_DIST = 2.5, PART_SNAP_TAU_MULT = 0.25,
-
+  RECOIL_DETECT = true,
+  RECOIL_GAIN = 0.030,
+  RECOIL_DECAY = 0.180,
+  RECOIL_MAX_OFFSET = 1.0,
+  RECOIL_MIN_SIGNAL = 1.15,
+  RECOIL_SENS = 0.0040,
+  RECOIL_SIGNAL_CLAMP = 2.0,
+  OCCLUSION_TRACK_ENABLE = false,
+  OCCLUSION_MAX_TIME = 1.6,
+  OCCLUSION_MIN_VEL = 6.0,
+  OCCLUSION_CONSISTENCY_MIN = 0.78,
+  OCCLUSION_VARIANCE_MAX = 1.2,
+  OCCLUSION_DEVIATION_MAX = 6.0,
+  SOFT_RELEASE_ENABLE = true,
+  SOFT_RELEASE_START = 220,
+  SOFT_RELEASE_FULL = 650,
+  SOFT_RELEASE_MAX = 0.30,
+  SOFT_RELEASE_ATTACK = 0.03,
+  SOFT_RELEASE_DECAY = 0.15,
+  RELEASE_MAX_PIXELS = 28,
+  RELEASE_INIT_FADE = 0.55,
+  AIM_BLEND_ENABLE = true,
+  AIM_BLEND_SIGMA = 40.0,
+  AIM_BLEND_CUTOFF_MULT = 3.0,
+  AIM_SMOOTH_ENABLE = true,
+  AIM_SMOOTH_TAU = 0.080,
+  PART_SNAP_ENABLE = true,
+  PART_SNAP_DIST = 2.5,
+  PART_SNAP_TAU_MULT = 0.25,
   REACTION_RAMP_ENABLE = true,
-
-  ACQUIRE_ENVELOPE_ENABLE = true, ACQUIRE_ENVELOPE_TIME = 0.090,
-  ACQUIRE_ENVELOPE_CURVE = 1.60, ACQUIRE_ENVELOPE_MIN = 0.00, ACQUIRE_BLEND_TIME = 0.100,
-
-  ACQUIRE_VEL_CAP_ENABLE = false, ACQUIRE_VEL_CAP_MIN = 40, ACQUIRE_VEL_CAP_MAX = 900,
-
-  SMART_SWITCH_ENABLE = true, SMART_SWITCH_NEAR_SCREEN = 220,
-  SMART_SWITCH_NEAR_BLEND = 0.150, SMART_SWITCH_FAR_BLEND = 0.100,
-  SMART_SWITCH_PRESERVE_VEL = 0.0, SMART_SWITCH_KEEP_ACQ = true,
-
-  MICRO_CORRECT_ENABLE = true, MICRO_CORRECT_RANGE = 7.0, MICRO_CORRECT_AMP = 0.10,
-  MICRO_CORRECT_FREQ = 2.4,
-
-  BLINK_ENABLE = true, BLINK_MIN_INTERVAL = 1.8, BLINK_MAX_INTERVAL = 4.5,
-  BLINK_CHANCE = 0.35, BLINK_DURATION = 0.055, BLINK_SCALE = 0.72,
-
-  OVERSHOOT_SETTLE_ENABLE = true, OVERSHOOT_SETTLE_RANGE = 12.0,
-  OVERSHOOT_SETTLE_TIME = 0.140, OVERSHOOT_SETTLE_AMP = 0.05,
-
-  HANDSHAKE_ENABLE = true, HANDSHAKE_AMP = 0.028, HANDSHAKE_FREQ = 7.2,
-
-  FATIGUE_ENABLE = true, FATIGUE_RATE = 0.045, FATIGUE_DECAY = 0.55,
-  FATIGUE_DRIFT_AMP = 0.20,
-
-  ANTICIPATE_ENABLE = true, ANTICIPATE_GAIN = 0.12, ANTICIPATE_TAU = 0.100,
+  ACQUIRE_ENVELOPE_ENABLE = true,
+  ACQUIRE_ENVELOPE_TIME = 0.22,
+  ACQUIRE_ENVELOPE_CURVE = 1.40,
+  ACQUIRE_ENVELOPE_MIN = 0.00,
+  ACQUIRE_BLEND_TIME = 0.180,
+  ACQUIRE_VEL_CAP_ENABLE = false,
+  ACQUIRE_VEL_CAP_MIN = 40,
+  ACQUIRE_VEL_CAP_MAX = 900,
+  SMART_SWITCH_ENABLE = true,
+  SMART_SWITCH_NEAR_SCREEN = 220,
+  SMART_SWITCH_NEAR_BLEND = 0.200,
+  SMART_SWITCH_FAR_BLEND = 0.140,
+  SMART_SWITCH_PRESERVE_VEL = 0.0,
+  SMART_SWITCH_KEEP_ACQ = true,
 }
-
+local function rnd() return RNG:NextNumber() end
 local st = {
   on = true, holding = false, m1 = false, m2 = false, toggleCooldown = false,
   target = nil, targetChar = nil, targetJudge = false,
-  lockAge = 0, targetWorldD = 9999, lastSwitchTime = 0,
-  switchBlendTimer = 0, lastTargetValidTime = 0, lastTargetVisibleTime = 0, acquireTime = 0,
+  lockAge = 0, targetWorldD = 9999, lastSwitchTime = 0, switchBlendTimer = 0,
+  lastTargetValidTime = 0, lastTargetVisibleTime = 0, acquireTime = 0,
   switchFromX = 0, switchFromY = 0, switchBlend = 1,
   switchBlendDuration = 0.180, switchIsNear = false,
-  acquireBlend = 1, acquireBlendFromX = 0, acquireBlendFromY = 0,
-  reactDelayCurrent = 0.070, reactDelayRolled = false,
-  flickTimer = 0, flickDirX = 0, flickDirY = 0, flickMag = 0, flickCooldown = 0,
-  flickPhaseSeed = math.random() * 100,
-  userYankTimer = 0, prevUserDirX = 0, prevUserDirY = 0,
-  prevUserDirInit = false, userMoveInf = 0,
-  userPriority = 0, lastSentX = 0, lastSentY = 0,
-  aimPointVisible = true, aimPointNotVisibleSince = 0,
-  aimDynamicY = nil, aimLateralX = 0, aimLateralTarget = 0,
-  aimLateralTimer = 0, aimRegionIndex = 1, aimRegionTimer = 0,
-  pulseTimer = 0, pulseDirX = 0, pulseDirY = 0, pulseMag = 0,
-  pulseTimerNext = 0, pulseRampCurrent = 0, pulseSpeedMultCurrent = 0,
-  returnPauseTimer = 0, returnPulseTimer = 0, returnPulseDirX = 0,
-  returnPulseDirY = 0, returnPulseMag = 0, returnCooldown = 0,
-  recentHitTime = nil, _returnProximityT = nil,
-  lastTargetScreenX = 0, lastTargetScreenY = 0, lastTargetScreenTime = 0,
-  lastTargetScreenInit = false, yankDetected = false, yankTimer = 0, stickyOutTimer = 0,
-  smartFlickCooldown = 0, smartFlickTimer = 0, smartFlickHoldTimer = 0,
-  smartFlickDirX = 0, smartFlickDirY = 0, smartFlickMag = 0,
-  smartFlickParkX = 0, smartFlickParkY = 0, smartFlickActive = false,
-  smartFlickTriggered = false, smartFlickPhaseSeed = math.random() * 100,
-  smlStartDirX = 0, smlStartDirY = 0, smlEndDirX = 0, smlEndDirY = 0,
-  smlPrevTargetScreenX = 0, smlPrevTargetScreenY = 0, smlPrevTargetScreenT = 0,
-  smlTargetScreenVelX = 0, smlTargetScreenVelY = 0, smlScreenVelInit = false,
+  acquireBlend = 1,
+  acquireBlendFromX = 0,
+  acquireBlendFromY = 0,
+  reactDelayCurrent = 0.070,
+  reactDelayRolled = false,
+  flickTimer = 0,
+  flickDirX = 0,
+  flickDirY = 0,
+  flickMag = 0,
+  flickCooldown = 0,
+  flickPhaseSeed = rnd() * 100,
+  userYankTimer = 0,
+  prevUserDirX = 0,
+  prevUserDirY = 0,
+  prevUserDirInit = false,
+  userMoveInf = 0,
+  aimPointVisible = true,
+  aimPointNotVisibleSince = 0,
+  aimDynamicY = nil,
+  pulseTimer = 0,
+  pulseDirX = 0,
+  pulseDirY = 0,
+  pulseMag = 0,
+  pulseTimerNext = 0,
+  pulseRampCurrent = 0,
+  pulseSpeedMultCurrent = 0,
+  returnPauseTimer = 0,
+  returnPulseTimer = 0,
+  returnPulseDirX = 0,
+  returnPulseDirY = 0,
+  returnPulseMag = 0,
+  returnCooldown = 0,
+  recentHitTime = nil,
+  _returnProximityT = 1.0,
+  lastTargetScreenX = 0,
+  lastTargetScreenY = 0,
+  lastTargetScreenTime = 0,
+  lastTargetScreenInit = false,
+  yankDetected = false,
+  yankTimer = 0,
+  stickyOutTimer = 0,
+  smartFlickCooldown = 0,
+  smartFlickTimer = 0,
+  smartFlickHoldTimer = 0,
+  smartFlickDirX = 0,
+  smartFlickDirY = 0,
+  smartFlickMag = 0,
+  smartFlickParkX = 0,
+  smartFlickParkY = 0,
+  smartFlickActive = false,
+  smartFlickTriggered = false,
+  smartFlickPhaseSeed = rnd() * 100,
+  smlStartDirX = 0,
+  smlStartDirY = 0,
+  smlEndDirX = 0,
+  smlEndDirY = 0,
+  smlPrevTargetScreenX = 0,
+  smlPrevTargetScreenY = 0,
+  smlPrevTargetScreenT = 0,
+  smlTargetScreenVelX = 0,
+  smlTargetScreenVelY = 0,
+  smlScreenVelInit = false,
   hitboxOffset = Vector3.zero, hitboxOffsetTarget = Vector3.zero, hitboxOffsetTimer = 0,
   predVar = 1.0, noiseVar = 1.0, predInertiaVar = 1.0,
   hist = {}, adaptVel = Vector3.zero, predictability = 0.5,
   lastDirX = 0, lastDirZ = 0, lastDirSet = false,
-  predStableTimer = 0, prevPredVelX = 0, prevPredVelZ = 0,
-  predVarSmooth = 0, predVelX = 0, predVelZ = 0, predVelY = 0,
-  predVelInit = false, predBlend = 1.0, predVelSmoothX = 0,
-  predVelSmoothZ = 0, predConfidence = 1.0,
-  speedModT = math.random() * 100, zetaModT = math.random() * 100,
-  doubleTapTimer = 0.7, doubleTapX = 0, doubleTapY = 0,
-  gaitPhase = 0, gaitPeriod = 0.35, gaitMul = 1.0,
-  microPauseTimer = 0.8, microPauseHold = 0, microPauseScale = 1.0,
+  predStableTimer = 0, prevPredVelX = 0, prevPredVelZ = 0, predVarSmooth = 0,
+  predVelX = 0, predVelZ = 0, predVelY = 0, predVelInit = false, predBlend = 1.0,
+  predVelSmoothX = 0, predVelSmoothZ = 0,
+  predConfidence = 1.0,
+  speedModT = rnd() * 100,
+  zetaModT = rnd() * 100,
+  doubleTapTimer = 0.7,
+  doubleTapX = 0, doubleTapY = 0,
+  gaitPhase = 0,
+  gaitPeriod = 0.35,
+  gaitMul = 1.0,
+  microPauseTimer = 0.8,
+  microPauseHold = 0,
+  microPauseScale = 1.0,
   predVelYSmooth = 0, predYSmooth = 0, targetAirborne = false,
   jumpActive = false, jumpStartTime = 0, jumpPeakYVel = 0,
   jumpApexDetected = false, jumpApexTime = 0,
   lastHistPos = nil, lastHistTime = 0, tpIgnoreTimer = 0,
   lastTargetPos = nil, tpActive = 0,
   aimScreenX = 0, aimScreenY = 0, aimScreenInit = false,
-  spotX = 0, spotY = 0, spotTimer = 0, spotTX = 0, spotTY = 0,
-  spotNoiseT = math.random() * 100, noiseT = math.random() * 100,
-  breathT = math.random() * 100, idleMicroT = math.random() * 100,
-  tremorT = math.random() * 100, saccadeTimer = 0.4,
-  saccadeX = 0, saccadeY = 0, vertMicroT = math.random() * 100,
-  aimDriftT = math.random() * 100, accumX = 0, accumY = 0,
-  lastSentY = 0, springVX = 0, springVY = 0, springOmega = 0,
+  spotX = 0, spotY = 0, spotTimer = 0, spotTX = 0, spotTY = 0, spotNoiseT = rnd() * 100,
+  noiseT = rnd() * 100, breathT = rnd() * 100,
+  idleMicroT = rnd() * 100, tremorT = rnd() * 100,
+  saccadeTimer = 0.4, saccadeX = 0, saccadeY = 0,
+  vertMicroT = rnd() * 100, aimDriftT = rnd() * 100,
+  accumX = 0, accumY = 0, lastSentY = 0,
+  springVX = 0, springVY = 0, springOmega = 0,
   springVsX = 0, springVsY = 0, springVsInit = false,
   zetaSmooth = 1.00, recoilOffsetY = 0,
-  visCache = {}, npcCache = {}, npcCacheT = 0,
-  lostFade = 0, lostTimer = 0, lostCoastTimer = 0,
-  lastPitch = nil, camPitchVel = 0, recoilSignal = 0,
+  npcCache = {}, npcCacheT = 0,
+  lostFade = 0, lostTimer = 0,
+  lostCoastTimer = 0,
+  camPitchVel = 0, recoilSignal = 0,
   aimPointPart = nil, manualInf = 0, manualDownInf = 0,
-  lastTargetVelMag = 0, mouseSpeedRaw = 0, mouseSpeedSmooth = 0,
-  mouseDeltaX = 0, mouseDeltaY = 0, sentAccumX = 0, sentAccumY = 0,
-  lastBatchMag = 0, manualPeakTime = 0, manualHoldTimer = 0,
-  lastSendTime = 0, cutSmooth = 0,
-  releaseSmooth = 0, aimSmoothWorld = nil, aimPointName = nil,
-  acquireEnvT = 0, humanCurveT = math.random() * 100,
-  humanWobbleT = math.random() * 100, humanResidualT = math.random() * 100,
-  phaseSettle = 0, lastTargetDirX = 0, lastTargetDirZ = 0,
-  lastTargetDirSet = false, liveDirBoost = 0, liveStillFactor = 0,
+  lastTargetVelMag = 0,
+  mouseSpeedRaw = 0, mouseSpeedSmooth = 0,
+  mouseDeltaX = 0, mouseDeltaY = 0,
+  manualPeakTime = 0, manualHoldTimer = 0,
+  editorVisible = true, lastSendTime = 0, cutSmooth = 0,
+  releaseSmooth = 0,
+  aimSmoothWorld = nil, aimPointName = nil,
+  acquireEnvT = 0,
+  humanCurveT = rnd() * 100,
+  humanWobbleT = rnd() * 100,
+  humanResidualT = rnd() * 100,
+  phaseSettle = 0,
+  lastTargetDirX = 0, lastTargetDirZ = 0, lastTargetDirSet = false,
+  liveDirBoost = 0, liveStillFactor = 0,
   frozenTargetDirX = 0, frozenTargetDirZ = 0,
-  dirChangeTime = 0, dirChangePending = false, frozenDirValidUntil = 0,
-  camPrevYaw = nil, camPrevPitch = nil,
-  camYawDelta = 0, camPitchDelta = 0, camAngularMag = 0,
-  camHistory = {}, userPixelsX = 0, userPixelsY = 0,
-  scriptPixelsX = 0, scriptPixelsY = 0, gameYaw = 0,
-  gamePitch = 0, gameMag = 0, gameEffectActive = false,
-  gameEffectTimer = 0, sensYaw = 0.10, sensPitch = 0.10,
-  userSpeed = 0, userDirX = 0, userDirY = 0, gameSignalSmooth = 0,
-
-  recoilPrevCamPitch = nil,
-  recoilPrevCamYaw = nil,
-  recoilActive = false,
-  recoilHoldTimer = 0,
-  recoilAccumPitch = 0,
-  recoilAccumYaw = 0,
-  recoilSpringY = 0,
-  recoilSpringX = 0,
-  recoilLastFrame = 0,
-  recoilSensPitch = 0.004,
-  recoilSensYaw = 0.004,
-  recoilCompY = 0,
-  recoilCompX = 0,
-  recoilShotsThisBurst = 0,
-  recoilBurstTimer = 0,
-
-  microCorrectT = math.random() * 100,
-  blinkTimer = 2.0,
-  blinkHold = 0,
-  prevErrorX = 0, prevErrorY = 0, prevErrorMag = nil,
-  overshootTimer = 0, overshootDirX = 0, overshootDirY = 0,
-  handShakeT = math.random() * 100,
-  fatigueT = math.random() * 100, fatigueLevel = 0,
-  anticipateX = 0, anticipateY = 0,
-  smoothErrorX = 0, smoothErrorY = 0,
-
-  -- NUEVO: escape intent
-  escapeIntent = 0,
-  escapeHoldTimer = 0,
+  dirChangeTime = 0,
+  dirChangePending = false,
+  frozenDirValidUntil = 0,
+  aimSmoothLocal = nil, aimFallbackPos = nil, aimWorldLast = nil,
+  lastErrX = 0, lastErrY = 0,
+  mouseRawX = 0, mouseRawY = 0,
+  srcAimSpeed = 0, srcGameRate = 0,
+  gateOpen = false,
+  outX = 0, outY = 0, steer = 0,
+  hideT = 0, lastVisWorld = nil, lastVisVelX = 0, lastVisVelZ = 0,
+  releaseT = 0, userRelease = false, hiddenNow = false,
+  axisT = rnd() * 100,
+  jumpJustStarted = false, jumpV0 = 0,
+  airFlickTimer = 0, airFlickDirX = 0, airFlickDirY = 0, airFlickMag = 0, airFlickSeed = 0,
+  intentFactor = 0, intentTimer = 0, intentDirX = 0, intentDirY = 0, intentMag = 0, intentCooldown = 0, intentSeed = 0,
 }
-
-local function clamp(v, lo, hi)
-  if v < lo then return lo end
-  if v > hi then return hi end
-  return v
-end
+local function clamp(v, lo, hi) if v < lo then return lo end; if v > hi then return hi end; return v end
 local function lerp(a, b, t) return a + (b - a) * t end
 local function smoothstep(a, b, x)
-  local t = clamp((x - a) / (b - a + 1e-9), 0, 1)
-  return t * t * (3 - 2 * t)
+  local t = clamp((x - a) / (b - a + 1e-9), 0, 1); return t * t * (3 - 2 * t)
 end
-local function expDecay(cur, tgt, tau, dt)
-  return tgt + (cur - tgt) * math.exp(-dt / math.max(tau, 1e-6))
-end
-local function rRange(a, b) return a + math.random() * (b - a) end
+local function expDecay(cur, tgt, tau, dt) return tgt + (cur - tgt) * math.exp(-dt / math.max(tau, 1e-6)) end
+local function rRange(a, b) return a + rnd() * (b - a) end
 local function vlen(x, y) return math.sqrt(x * x + y * y) end
+local function sign(x) if x > 0 then return 1 elseif x < 0 then return -1 end; return 0 end
 local function bell(t) return math.sin(clamp(t, 0, 1) * math.rad(180)) end
 local function easeInOutCos(t) return (1 - math.cos(clamp(t, 0, 1) * math.rad(180))) * 0.5 end
 local function rotate2D(x, y, ang)
   local c, s = math.cos(ang), math.sin(ang)
   return x * c - y * s, x * s + y * c
 end
-local function flickCurve(t)
-  t = clamp(t, 0, 1)
-  local ramp = 0.42
-  local peak = 0.92
-  if t < ramp then
-    local x = t / ramp
-    return peak * (x * x * (3 - 2 * x))
-  elseif t > 1 - ramp then
-    local x = (1 - t) / ramp
-    return peak * (x * x * (3 - 2 * x))
-  else
-    return peak
-  end
-end
-
 local function rerollAll()
   st.predVar = rRange(C.PRED_VAR_MIN, C.PRED_VAR_MAX)
   st.noiseVar = rRange(C.NOISE_VAR_MIN, C.NOISE_VAR_MAX)
   st.predInertiaVar = rRange(1 - C.PRED_INERTIA_VAR, 1 + C.PRED_INERTIA_VAR)
 end
-
+local function medianOf(arr)
+  local n = #arr
+  if n == 0 then return nil end
+  local tmp = {}
+  for i = 1, n do tmp[i] = arr[i] end
+  table.sort(tmp)
+  if n % 2 == 1 then return tmp[math.floor((n + 1) / 2)] end
+  return (tmp[n / 2] + tmp[n / 2 + 1]) * 0.5
+end
+local function pushSample(arr, v, maxN)
+  table.insert(arr, v)
+  while #arr > maxN do table.remove(arr, 1) end
+end
+local function rayBox(ox, oy, oz, dx, dy, dz, hx, hy, hz)
+  local tmin, tmax = -math.huge, math.huge
+  local o = {ox, oy, oz}; local d = {dx, dy, dz}; local h = {hx, hy, hz}
+  for i = 1, 3 do
+    local oi, di, hi = o[i], d[i], h[i]
+    if math.abs(di) < 1e-9 then
+      if oi < -hi - 1e-6 or oi > hi + 1e-6 then return nil end
+    else
+      local t1 = (-hi - oi) / di
+      local t2 = ( hi - oi) / di
+      if t1 > t2 then t1, t2 = t2, t1 end
+      if t1 > tmin then tmin = t1 end
+      if t2 < tmax then tmax = t2 end
+      if tmin > tmax then return nil end
+    end
+  end
+  return tmin, tmax
+end
+local function chordBox(ox, oy, oz, dx, dy, dz, hx, hy, hz)
+  local tmin, tmax = rayBox(ox, oy, oz, dx, dy, dz, hx, hy, hz)
+  if not tmin then return 0 end
+  return math.max(tmax - math.max(tmin, 0), 0)
+end
+local function chordSphere(ox, oy, oz, dx, dy, dz, r)
+  local b = ox * dx + oy * dy + oz * dz
+  local c = ox * ox + oy * oy + oz * oz - r * r
+  local disc = b * b - c
+  if disc <= 0 then return 0 end
+  local s = math.sqrt(disc)
+  local t1, t2 = -b - s, -b + s
+  return math.max(t2 - math.max(t1, 0), 0)
+end
+local function newSeparator(cfg)
+  local N = 8
+  local S = {
+    frame = 0, ringX = {}, ringY = {},
+    err = {0.0, 3.0, 6.0, 9.0}, lat = 1,
+    camInit = false, lastYaw = 0, lastPitch = 0,
+    kxs = {}, kys = {}, kx = nil, ky = nil,
+    rawX = 0, rawY = 0, userX = 0, userY = 0, aimX = 0, aimY = 0,
+    gameYaw = 0, gamePitch = 0, gamePxX = 0, gamePxY = 0,
+    camDYaw = 0, camDPitch = 0,
+  }
+  for i = 0, N - 1 do S.ringX[i] = 0; S.ringY[i] = 0 end
+  function S.recordSend(ix, iy)
+    local slot = S.frame % N
+    S.ringX[slot] = S.ringX[slot] + ix
+    S.ringY[slot] = S.ringY[slot] + iy
+  end
+  function S.step(rawX, rawY, yaw, pitch, dt, camOk)
+    S.frame = S.frame + 1
+    local slot = S.frame % N
+    S.ringX[slot] = 0; S.ringY[slot] = 0
+    S.rawX, S.rawY = rawX, rawY
+    local ex, ey, anySend = {}, {}, 0
+    for L = 1, 4 do
+      local s = (S.frame - L) % N
+      ex[L] = S.ringX[s]; ey[L] = S.ringY[s]
+      anySend = anySend + math.abs(ex[L]) + math.abs(ey[L])
+    end
+    if anySend > 0.5 then
+      local a = cfg.latAlpha
+      for L = 1, 4 do
+        local dx, dy = rawX - ex[L], rawY - ey[L]
+        S.err[L] = S.err[L] * (1 - a) + (dx * dx + dy * dy) * a
+      end
+    end
+    local wsum, expX, expY, bestL, bestW = 0, 0, 0, 1, -1
+    for L = 1, 4 do
+      local w = 1 / ((S.err[L] + 0.5) ^ 2)
+      wsum = wsum + w
+      expX = expX + ex[L] * w; expY = expY + ey[L] * w
+      if w > bestW then bestW = w; bestL = L end
+    end
+    expX, expY = expX / wsum, expY / wsum
+    S.lat = bestL
+    S.aimX, S.aimY = expX, expY
+    local sentMag = math.sqrt(expX * expX + expY * expY)
+    local db = math.max(cfg.deadbandMin, cfg.deadbandRel * sentMag)
+    local ux, uy = rawX - expX, rawY - expY
+    if math.abs(ux) < db then ux = 0 end
+    if math.abs(uy) < db then uy = 0 end
+    S.userX, S.userY = ux, uy
+    S.gameYaw, S.gamePitch, S.camDYaw, S.camDPitch = 0, 0, 0, 0
+    if camOk and S.camInit then
+      local dYaw = yaw - S.lastYaw
+      if dYaw > math.pi then dYaw = dYaw - 2 * math.pi elseif dYaw < -math.pi then dYaw = dYaw + 2 * math.pi end
+      local dPitch = pitch - S.lastPitch
+      S.camDYaw, S.camDPitch = dYaw, dPitch
+      local pitchOk = math.abs(pitch) < cfg.pitchLimit
+      if math.abs(rawX) >= cfg.kMinRaw then
+        local r = dYaw / rawX
+        if math.abs(r) > 1e-5 and math.abs(r) < 0.05 then pushSample(S.kxs, r, cfg.kSamples); S.kx = medianOf(S.kxs) end
+      end
+      if pitchOk and math.abs(rawY) >= cfg.kMinRaw then
+        local r = dPitch / rawY
+        if math.abs(r) > 1e-5 and math.abs(r) < 0.05 then pushSample(S.kys, r, cfg.kSamples); S.ky = medianOf(S.kys) end
+      end
+      if S.kx and #S.kxs >= 6 then S.gameYaw = dYaw - S.kx * rawX end
+      if S.ky and #S.kys >= 6 and pitchOk then S.gamePitch = dPitch - S.ky * rawY end
+      if math.abs(S.gameYaw) < cfg.gameDeadRad then S.gameYaw = 0 end
+      if math.abs(S.gamePitch) < cfg.gameDeadRad then S.gamePitch = 0 end
+    end
+    if camOk then S.lastYaw, S.lastPitch, S.camInit = yaw, pitch, true else S.camInit = false end
+    S.gamePxX = (S.kx and math.abs(S.kx) > 1e-6) and S.gameYaw / S.kx or 0
+    S.gamePxY = (S.ky and math.abs(S.ky) > 1e-6) and S.gamePitch / S.ky or 0
+  end
+  return S
+end
+local Sep = newSeparator({
+  latAlpha = C.SEP_LAT_ALPHA, deadbandMin = C.SEP_DEADBAND_MIN, deadbandRel = C.SEP_DEADBAND_REL,
+  kSamples = C.SEP_K_SAMPLES, kMinRaw = C.SEP_K_MIN_RAW, pitchLimit = C.SEP_PITCH_LIMIT,
+  gameDeadRad = C.SEP_GAME_DEAD_RAD,
+})
+local Src = {}
+function Src.update(dt)
+  local behavior = UserInputService.MouseBehavior
+  local camOk = behavior ~= Enum.MouseBehavior.Default
+  local raw = UserInputService:GetMouseDelta()
+  local look = camera.CFrame.LookVector
+  local pitch = math.asin(clamp(look.Y, -1, 1))
+  local yaw = math.atan2(-look.X, -look.Z)
+  Sep.step(raw.X, raw.Y, yaw, pitch, dt, camOk)
+  st.mouseRawX, st.mouseRawY = raw.X, raw.Y
+  local ux, uy = Sep.userX, Sep.userY
+  local mag = vlen(ux, uy)
+  if mag > C.MOUSE_MAX_MAG then
+    local s = C.MOUSE_MAX_MAG / mag
+    ux, uy, mag = ux * s, uy * s, C.MOUSE_MAX_MAG
+  end
+  st.mouseDeltaX, st.mouseDeltaY = ux, uy
+  local dtSafe = math.max(dt, C.MOUSE_DT_MIN)
+  local rawSpeed = math.min(mag / dtSafe, C.MOUSE_SPEED_CAP)
+  st.mouseSpeedRaw = rawSpeed
+  st.mouseSpeedSmooth = expDecay(st.mouseSpeedSmooth, rawSpeed, C.MOUSE_SMOOTH_TAU, dt)
+  st.srcAimSpeed = vlen(Sep.aimX, Sep.aimY) / dtSafe
+  st.camPitchVel = Sep.camDPitch / dtSafe
+  local gRate = Sep.gamePitch / dtSafe
+  st.srcGameRate = gRate
+  if C.RECOIL_DETECT and camOk then
+    local sig = clamp(gRate, -C.RECOIL_SIGNAL_CLAMP, C.RECOIL_SIGNAL_CLAMP)
+    st.recoilSignal = expDecay(st.recoilSignal, sig, C.GAME_PITCH_TAU, dt)
+  else
+    st.recoilSignal = expDecay(st.recoilSignal, 0, 0.02, dt)
+  end
+end
 local function getCursor()
   if C.CENTER_AIM and camera then
     local vp = camera.ViewportSize
@@ -571,7 +837,6 @@ local function getCursor()
   end
   return UserInputService:GetMouseLocation()
 end
-
 local function isMouseAtCenter()
   if not C.CENTER_REQUIRE_MOUSE then return true end
   if not camera then return false end
@@ -581,314 +846,242 @@ local function isMouseAtCenter()
   local cy = vp.Y * 0.5 + C.CENTER_Y
   return vlen(rm.X - cx, rm.Y - cy) <= C.CENTER_REQUIRE_RADIUS
 end
-
+local function aimGateOpen()
+  if C.CENTER_REQUIRE_LOCK then
+    return UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter
+  end
+  return isMouseAtCenter()
+end
 local function isJudgeChar(char)
   if not char then return false end
-  for _, kw in ipairs(C.JUDGE_KEYWORDS) do
-    if string.find(char.Name, kw) then return true end
-  end
+  for _, kw in ipairs(C.JUDGE_KEYWORDS) do if string.find(char.Name, kw) then return true end end
   return false
 end
-
 local function hasFilter(name)
-  for _, f in ipairs(USER.TARGET_FILTERS) do
-    if f == name then return true end
-  end
+  for _, f in ipairs(USER.TARGET_FILTERS) do if f == name then return true end end
   return false
 end
-
 local function findPart(char, name)
   if not char then return nil end
-  local p = char:FindFirstChild(name)
-  if p and p:IsA("BasePart") then return p end
+  local p = char:FindFirstChild(name); if p and p:IsA("BasePart") then return p end
   return nil
 end
-
--- ===== NUEVO: detecta si el usuario está jalando FUERTE en dirección contraria al aim =====
--- Devuelve 0..1 (0 = no escape, 1 = escape fuerte)
-local function computeUserEscapeIntent()
-  local userSpd = st.mouseSpeedSmooth or 0
-  if userSpd < C.USER_ESCAPE_MIN_SPEED then return 0 end
-
-  local ux = st.mouseDeltaX or 0
-  local uy = st.mouseDeltaY or 0
-  local uMag = vlen(ux, uy)
-  if uMag < 1 then return 0 end
-  ux, uy = ux / uMag, uy / uMag
-
-  -- Dirección del aim: hacia dónde está jalando el aim (spring velocity)
-  local aimMag = vlen(st.springVsX or 0, st.springVsY or 0)
-  local ax, ay
-  if aimMag > 0.5 then
-    ax, ay = (st.springVsX or 0) / aimMag, (st.springVsY or 0) / aimMag
-  else
-    -- fallback: usar dirección de la pantalla hacia el punto de aim
-    if st.aimScreenInit and camera then
-      local vp = camera.ViewportSize
-      local dx = st.aimScreenX - (vp.X * 0.5 + C.CENTER_X)
-      local dy = st.aimScreenY - (vp.Y * 0.5 + C.CENTER_Y)
-      local dm = vlen(dx, dy)
-      if dm > 1 then
-        ax, ay = dx / dm, dy / dm
-      else
-        return 0
-      end
-    else
-      return 0
-    end
-  end
-
-  -- dot negativo = usuario jalando en dirección OPUESTA al aim
-  local dot = ux * ax + uy * ay
-  if dot > C.USER_ESCAPE_DOT_THRESH then return 0 end
-
-  -- intensidad: más opuesto y más rápido = más fuerte
-  local intensity = (-dot) * math.min(userSpd / C.USER_ESCAPE_MIN_SPEED, 2.0)
-  return clamp(intensity, 0, 1)
-end
-
 local function updateHitboxZone(dt)
   st.hitboxOffsetTimer = st.hitboxOffsetTimer - dt
   if st.hitboxOffsetTimer <= 0 then
     local s = 0.55
     local r = C.HITBOX_SUBZONE_RATIO
     st.hitboxOffsetTarget = Vector3.new(
-      rRange(-s * r, s * r), rRange(-s * r, s * r), rRange(-s * r, s * r)
+      rRange(-s * r, s * r),
+      rRange(-s * r, s * r) * 0.6,
+      rRange(-s * r, s * r)
     )
     st.hitboxOffsetTimer = rRange(C.HITBOX_SUBZONE_CHANGE_MIN, C.HITBOX_SUBZONE_CHANGE_MAX)
   end
   local a = 1 - math.exp(-dt / C.HITBOX_SUBZONE_TAU)
   st.hitboxOffset = st.hitboxOffset + (st.hitboxOffsetTarget - st.hitboxOffset) * a
 end
-
 local function sendMouseRelative(x, y)
-  x = x * C.MOUSE_SCALE
-  y = y * C.MOUSE_SCALE
-  st.accumX = st.accumX + x
-  st.accumY = st.accumY + y
+  x = x * C.MOUSE_SCALE; y = y * C.MOUSE_SCALE
+  st.accumX = st.accumX + x; st.accumY = st.accumY + y
   local ix = st.accumX >= 0 and math.floor(st.accumX + 0.5) or math.ceil(st.accumX - 0.5)
   local iy = st.accumY >= 0 and math.floor(st.accumY + 0.5) or math.ceil(st.accumY - 0.5)
   if ix ~= 0 or iy ~= 0 then
-    st.accumX = st.accumX - ix
-    st.accumY = st.accumY - iy
-    pcall(function() mousemoverel(ix, iy) end)
-    st.sentAccumX = st.sentAccumX + ix
-    st.sentAccumY = st.sentAccumY + iy
-    local m = math.sqrt(ix * ix + iy * iy)
-    if m > st.lastBatchMag then st.lastBatchMag = m end
-    st.lastSendTime = tick()
-    st.lastSentY = iy
+    st.accumX = st.accumX - ix; st.accumY = st.accumY - iy
+    local ok = pcall(function() mousemoverel(ix, iy) end)
+    if ok then
+      Sep.recordSend(ix, iy)
+      st.lastSendTime = clock()
+      st.lastSentY = iy
+    else
+      st.lastSentY = 0
+    end
   else
     st.lastSentY = 0
   end
 end
-
-local function updateRecoilAlways(dt)
-  if not C.RECOIL_ENABLE then
-    st.recoilActive = false
-    st.recoilCompY = 0
-    st.recoilCompX = 0
-    return 0, 0
+local Vis = {
+  cache = setmetatable({}, {__mode = "k"}),
+  budget = 0, rp = nil, rpInc = nil, charRef = nil, baseEx = {},
+  camPos = Vector3.zero, motion = 0,
+}
+function Vis.params()
+  local ch = player.Character
+  if (not Vis.rp) or Vis.charRef ~= ch then
+    local rp = RaycastParams.new()
+    rp.FilterType = Enum.RaycastFilterType.Exclude
+    rp.IgnoreWater = true
+    pcall(function() rp.RespectCanCollide = C.WB_RESPECT_CANCOLLIDE end)
+    Vis.baseEx = ch and {ch} or {}
+    rp.FilterDescendantsInstances = Vis.baseEx
+    Vis.rp = rp
+    Vis.charRef = ch
   end
-  local isFiring = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
-  local manualFire = st.m1
-  if isFiring or manualFire then
-    st.recoilHoldTimer = C.RECOIL_HOLD_MAX
-    st.recoilActive = true
-    st.recoilShotsThisBurst = st.recoilShotsThisBurst + 1
-    st.recoilBurstTimer = 0.15
-  else
-    if st.recoilBurstTimer > 0 then
-      st.recoilBurstTimer = st.recoilBurstTimer - dt
-    else
-      st.recoilShotsThisBurst = 0
-    end
-    if st.recoilHoldTimer > 0 then
-      st.recoilHoldTimer = st.recoilHoldTimer - dt
-    else
-      st.recoilActive = false
-    end
-  end
-  if not st.recoilActive then
-    st.recoilCompY = expDecay(st.recoilCompY, 0, C.RECOIL_DECAY_TAU, dt)
-    st.recoilCompX = expDecay(st.recoilCompX, 0, C.RECOIL_DECAY_TAU, dt)
-    return 0, 0
-  end
-  local compY = 0
-  local compX = 0
-  if C.RECOIL_USE_FIXED_MOUSEREL then
-    compY = C.RECOIL_FIXED_Y * C.RECOIL_STRENGTH_VERT
-    compX = C.RECOIL_FIXED_X * C.RECOIL_STRENGTH_HORZ
-  elseif C.RECOIL_USE_CAM_DELTA and camera then
-    local cf = camera.CFrame
-    local look = cf.LookVector
-    local pitch = math.asin(clamp(look.Y, -1, 1))
-    local yaw = math.atan2(look.X, look.Z)
-    if st.recoilPrevCamPitch and st.recoilPrevCamYaw then
-      local dPitch = pitch - st.recoilPrevCamPitch
-      local dYaw = yaw - st.recoilPrevCamYaw
-      if dYaw > math.pi then dYaw = dYaw - 2 * math.pi end
-      if dYaw < -math.pi then dYaw = dYaw + 2 * math.pi end
-      local ourPitchContrib = (st.lastSentY or 0) * st.recoilSensPitch
-      local ourYawContrib = (st.sentAccumX or 0) * st.recoilSensYaw
-      local recoilDPitch = dPitch - ourPitchContrib
-      local recoilDYaw = dYaw - ourYawContrib
-      if math.abs(recoilDPitch) > C.RECOIL_CAM_DELTA_MIN and math.abs(recoilDPitch) < C.RECOIL_CAM_DELTA_MAX then
-        st.recoilAccumPitch = st.recoilAccumPitch + recoilDPitch
-      end
-      if math.abs(recoilDYaw) > C.RECOIL_CAM_DELTA_MIN and math.abs(recoilDYaw) < C.RECOIL_CAM_DELTA_MAX then
-        st.recoilAccumYaw = st.recoilAccumYaw + recoilDYaw
-      end
-      st.recoilAccumPitch = expDecay(st.recoilAccumPitch, 0, C.RECOIL_CAM_SMOOTH_TAU, dt)
-      st.recoilAccumYaw = expDecay(st.recoilAccumYaw, 0, C.RECOIL_CAM_SMOOTH_TAU, dt)
-    end
-    st.recoilPrevCamPitch = pitch
-    st.recoilPrevCamYaw = yaw
-    compY = st.recoilAccumPitch * C.RECOIL_CAM_PITCH_GAIN * C.RECOIL_STRENGTH_VERT
-    compX = st.recoilAccumYaw * C.RECOIL_CAM_YAW_GAIN * C.RECOIL_STRENGTH_HORZ
-    local pixelPerDegree = C.RECOIL_PIXEL_PER_FRAME * 60
-    compY = compY * pixelPerDegree
-    compX = compX * pixelPerDegree
-  end
-  compY = compY * (1 + st.recoilShotsThisBurst * C.RECOIL_RAMP_UP)
-  compX = compX * (1 + st.recoilShotsThisBurst * C.RECOIL_RAMP_UP)
-  compY = clamp(compY, -C.RECOIL_MAX_COMP, C.RECOIL_MAX_COMP)
-  compX = clamp(compX, -C.RECOIL_MAX_COMP, C.RECOIL_MAX_COMP)
-  st.recoilCompY = compY * C.RECOIL_MOUSEREL_MULT
-  st.recoilCompX = compX * C.RECOIL_MOUSEREL_MULT
-  return st.recoilCompX, st.recoilCompY
+  return Vis.rp
 end
-
-local function measureHitThickness(result, rayDir)
-  local inst = result.Instance
-  if not inst or not inst:IsA("BasePart") then return math.huge end
-  if not inst.CanCollide then return 0 end
-  if inst.Transparency >= C.WALL_TRANSP_MIN then return 0 end
-  local rp = RaycastParams.new()
-  rp.FilterType = Enum.RaycastFilterType.Include
+function Vis.incParams()
+  if not Vis.rpInc then
+    local rp = RaycastParams.new()
+    rp.FilterType = Enum.RaycastFilterType.Include
+    rp.IgnoreWater = true
+    Vis.rpInc = rp
+  end
+  return Vis.rpInc
+end
+function Vis.beginFrame()
+  Vis.budget = C.VIS_RAY_BUDGET
+  Vis.camPos = camera.CFrame.Position
+  Vis.motion = clamp(st.mouseSpeedSmooth / 900 + st.lastTargetVelMag / 35, 0, 1)
+end
+local function isCharacterPart(inst)
+  local m = inst:FindFirstAncestorOfClass("Model")
+  if m and m:FindFirstChildOfClass("Humanoid") then return m end
+  return nil
+end
+function Vis.backcast(inst, entry, dir, limit)
+  local len = limit + 0.25
+  local rp = Vis.incParams()
   rp.FilterDescendantsInstances = {inst}
-  rp.IgnoreWater = true
-  local exit = workspace:Raycast(result.Position + rayDir * 0.001, rayDir * 50, rp)
-  if not exit then return math.huge end
-  return (exit.Position - result.Position).Magnitude
+  local r = workspace:Raycast(entry + dir * len, -dir * len, rp)
+  if not r then return math.huge end
+  return (r.Position - entry).Magnitude
 end
-
-local function canSeeNative(targetPos, model)
-  if not camera then return true end
-  local ignore = {camera}
-  if player.Character then table.insert(ignore, player.Character) end
-  if model then table.insert(ignore, model) end
-  local parts = camera:GetPartsObscuringTarget({targetPos}, ignore)
-  for _, p in ipairs(parts) do
-    if p:IsA("BasePart") then
-      local canBypass = false
-      if C.WALL_PASS_TRANSP and p.Transparency >= C.WALL_TRANSP_MIN then canBypass = true end
-      if not canBypass and C.WALL_PASS_NONCOLLIDE and not p.CanCollide then canBypass = true end
-      if not canBypass then return false end
+function Vis.chord(inst, pos, dir, limit)
+  if inst:IsA("Terrain") then return math.huge end
+  if inst:IsA("Part") then
+    local cf = inst.CFrame
+    local lo = cf:PointToObjectSpace(pos)
+    local ld = cf:VectorToObjectSpace(dir)
+    local shape = inst.Shape
+    if shape == Enum.PartType.Block then
+      local h = inst.Size * 0.5
+      return chordBox(lo.X, lo.Y, lo.Z, ld.X, ld.Y, ld.Z, h.X, h.Y, h.Z)
+    elseif shape == Enum.PartType.Ball then
+      local s = inst.Size
+      return chordSphere(lo.X, lo.Y, lo.Z, ld.X, ld.Y, ld.Z, math.min(s.X, s.Y, s.Z) * 0.5)
     end
   end
-  return true
+  return Vis.backcast(inst, pos, dir, limit)
 end
-
-local function canSeeManual(targetPos, model, noCache)
+function Vis.line(origin, target, model)
+  local rp = Vis.params()
+  local ex = nil
+  local function run()
+    local pos = origin
+    local total, parts, free = 0, 0, 0
+    for _ = 1, C.WB_MAX_STEPS do
+      local rem = target - pos
+      local dist = rem.Magnitude
+      if dist < 0.05 then return true end
+      local dir = rem / dist
+      local res = workspace:Raycast(pos, rem, rp)
+      if not res then return true end
+      if (res.Position - target).Magnitude <= C.VIS_TARGET_RADIUS then return true end
+      local inst = res.Instance
+      if model and inst:IsDescendantOf(model) then return true end
+      local step, pass = 0, false
+      local charModel = C.WB_IGNORE_CHARACTERS and isCharacterPart(inst) or nil
+      if charModel then
+        if not ex then ex = {} for i = 1, #Vis.baseEx do ex[i] = Vis.baseEx[i] end end
+        table.insert(ex, charModel)
+        rp.FilterDescendantsInstances = ex
+        pass = true
+      elseif inst.Transparency >= C.TRANSP_BYPASS then
+        pass = true
+      elseif C.WB_SOFT_MATERIALS[inst.Material.Name] then
+        pass = true
+      elseif C.WB_ENABLE then
+        local allow = C.WB_MAX_THICK - total
+        local chord = Vis.chord(inst, res.Position, dir, math.max(allow, C.EDGE_THIN))
+        if chord <= C.EDGE_THIN then
+          free = free + 1
+          if free <= C.MAX_THIN then pass = true; step = chord end
+        elseif chord <= allow and parts < C.WB_MAX_PARTS then
+          parts = parts + 1; total = total + chord; pass = true; step = chord
+        end
+      end
+      if not pass then return false end
+      pos = res.Position + dir * (step + 0.04)
+    end
+    return false
+  end
+  local ok = run()
+  if ex then rp.FilterDescendantsInstances = Vis.baseEx end
+  return ok
+end
+function Vis.point(char, key, pos, isCurrent)
   if not C.WALLCHECK then return true end
-  if not targetPos or not model then return true end
-  local now = tick()
-  if not noCache then
-    local c = st.visCache[model]
-    if c and now - c.t < C.WALL_CACHE_TTL then
-      if c.pos and (targetPos - c.pos).Magnitude < C.WALL_CACHE_POS_EPS then
-        return c.r
-      end
+  local t = clock()
+  local cc = Vis.cache[char]
+  if not cc then cc = {}; Vis.cache[char] = cc end
+  local e = cc[key]
+  if e then
+    local ttl = lerp(C.VIS_CACHE_MAX, C.VIS_CACHE, clamp(Vis.motion, 0, 1))
+    if (t - e.t) < ttl and (pos - e.p).Magnitude < C.VIS_POS_INVALIDATE and (Vis.camPos - e.c).Magnitude < 0.35 then
+      return e.v
     end
   end
-  local origin = camera.CFrame.Position
-  local delta = targetPos - origin
-  local dist = delta.Magnitude
-  if dist < 0.01 then return true end
-  local dir = delta / dist
-  local ex = {model}
-  if player.Character then table.insert(ex, player.Character) end
-  local rp = RaycastParams.new()
-  rp.FilterType = Enum.RaycastFilterType.Exclude
-  rp.FilterDescendantsInstances = ex
-  rp.IgnoreWater = true
-  local pos = origin
-  local remaining = dist
-  local bypass = 0
-  local visible = false
-  for _ = 1, C.WALL_MAX_BYPASS + 1 do
-    if remaining <= 0.01 then break end
-    local result = workspace:Raycast(pos, dir * remaining, rp)
-    if not result then visible = true; break end
-    if result.Instance and result.Instance:IsDescendantOf(model) then
-      visible = true; break
-    end
-    if (result.Position - targetPos).Magnitude < C.VIS_TARGET_RADIUS then
-      visible = true; break
-    end
-    local canBypass = false
-    local inst = result.Instance
-    if inst and inst:IsA("BasePart") then
-      if C.WALL_PASS_TRANSP and inst.Transparency >= C.WALL_TRANSP_MIN then canBypass = true end
-      if not canBypass and C.WALL_PASS_NONCOLLIDE and not inst.CanCollide then canBypass = true end
-      if not canBypass and C.WALL_PASS_THIN then
-        local thick = measureHitThickness(result, dir)
-        if thick <= C.WALL_THIN_MAX_THICK then canBypass = true end
-      end
-    end
-    if canBypass and bypass < C.WALL_MAX_BYPASS then
-      bypass = bypass + 1
-      local advance = (result.Position - pos).Magnitude + C.WALL_STEP
-      remaining = remaining - advance
-      pos = result.Position + dir * C.WALL_STEP
-    else
-      visible = false
-      break
-    end
+  if Vis.budget <= 0 then
+    if e then return e.v end
+    return isCurrent and true or false
   end
-  if not noCache then
-    st.visCache[model] = {t = now, r = visible, pos = targetPos}
+  Vis.budget = Vis.budget - 1
+  local vis = Vis.line(Vis.camPos, pos, char)
+  if not e then e = {h = 0, v = vis}; cc[key] = e end
+  if vis then
+    e.h = 0; e.v = true
+  else
+    e.h = e.h + 1
+    if e.h >= C.VIS_HYST or not e.v then e.v = false end
   end
-  return visible
+  e.t = t; e.p = pos; e.c = Vis.camPos
+  return e.v
 end
-
+function Vis.altPoints(char)
+  local list = {}
+  local names = {"Head", "UpperTorso", "Torso", "HumanoidRootPart", "LowerTorso"}
+  for _, n in ipairs(names) do
+    local p = char:FindFirstChild(n)
+    if p and p:IsA("BasePart") then table.insert(list, {key = "alt_" .. n, pos = p.Position}) end
+  end
+  return list
+end
+function Vis.modelVisible(char, aimPos, isCurrent)
+  if Vis.point(char, "aim", aimPos, isCurrent) then return true, aimPos end
+  if C.VIS_POINTS_ENABLE then
+    local pts = Vis.altPoints(char)
+    for i = 1, #pts do
+      if Vis.point(char, pts[i].key, pts[i].pos, isCurrent) then return true, pts[i].pos end
+    end
+  end
+  return false, nil
+end
 local function canSee(targetPos, model, noCache)
   if not C.WALLCHECK then return true end
   if not targetPos or not model then return true end
-  if C.WALL_USE_NATIVE_API then
-    local visible = canSeeNative(targetPos, model)
-    if visible then return true end
-    if C.WALL_PASS_THIN then return canSeeManual(targetPos, model, noCache) end
-    return false
-  end
-  return canSeeManual(targetPos, model, noCache)
+  if noCache then return Vis.line(camera.CFrame.Position, targetPos, model) end
+  return Vis.point(model, "legacy", targetPos, false)
 end
-
 local function findFolders(root, path, i)
   if i > #path then return {root} end
   local found = {}
   for _, c in ipairs(root:GetChildren()) do
     if c.Name == path[i] and (c:IsA("Folder") or c:IsA("Model")) then
-      for _, s in ipairs(findFolders(c, path, i + 1)) do
-        table.insert(found, s)
-      end
+      for _, s in ipairs(findFolders(c, path, i + 1)) do table.insert(found, s) end
     end
   end
   return found
 end
-
 local function getNPCs()
-  local now = tick()
-  if now - st.npcCacheT > C.NPC_CACHE then
+  local t = clock()
+  if t - st.npcCacheT > C.NPC_CACHE then
     local result, seen = {}, {}
     for _, path in ipairs(C.NPC_PATHS) do
       for _, folder in ipairs(findFolders(workspace, path, 1)) do
         for _, child in ipairs(folder:GetChildren()) do
           local h = child:FindFirstChildOfClass("Humanoid")
           if h and h.Health > 0 and not seen[child] then
-            seen[child] = true
-            table.insert(result, child)
+            seen[child] = true; table.insert(result, child)
           end
         end
       end
@@ -898,123 +1091,75 @@ local function getNPCs()
         local h = obj:FindFirstChildOfClass("Humanoid")
         local isPlayer = false
         for _, p in Players:GetPlayers() do
-          if p.Character == obj then isPlayer = true; break end
+          if p.Character == obj then isPlayer = true break end
         end
         if h and h.Health > 0 and not isPlayer then
-          seen[obj] = true
-          table.insert(result, obj)
+          seen[obj] = true; table.insert(result, obj)
         end
       end
     end
-    st.npcCache = result
-    st.npcCacheT = now
+    st.npcCache = result; st.npcCacheT = t
   end
   return st.npcCache
 end
-
-local function updateAimRegion(dt)
-  st.aimRegionTimer = st.aimRegionTimer - dt
-  if st.aimRegionTimer <= 0 then
-    st.aimRegionTimer = C.AIM_REGION_SWITCH + rRange(-C.AIM_REGION_SWITCH_J, C.AIM_REGION_SWITCH_J)
-    st.aimRegionIndex = math.random(1, C.AIM_REGION_COUNT)
+local aimStates = setmetatable({}, {__mode = "k"})
+local function getAimState(char)
+  local s = aimStates[char]
+  if not s then
+    s = {
+      acqBias = rRange(-C.AIM_ACQ_JITTER_T, C.AIM_ACQ_JITTER_T),
+      noiseT = rnd() * 100,
+      seed = rnd() * 50,
+    }
+    aimStates[char] = s
   end
+  return s
 end
-
-local function getRegionT()
-  local idx = st.aimRegionIndex
-  local baseT = (idx - 1) / math.max(C.AIM_REGION_COUNT - 1, 1)
-  local jitter = (math.random() - 0.5) * C.AIM_REGION_JITTER
-  return clamp(baseT + jitter, 0, 1)
-end
-
-local function updateLateralAim(dt, char)
-  if not C.AIM_LATERAL_ENABLE then return 0 end
-  local root = char:FindFirstChild("HumanoidRootPart")
-  if not root then return 0 end
-  local leftArm = char:FindFirstChild("LeftUpperArm") or char:FindFirstChild("Left Arm") or char:FindFirstChild("LeftArm")
-  local rightArm = char:FindFirstChild("RightUpperArm") or char:FindFirstChild("Right Arm") or char:FindFirstChild("RightArm")
-  local width = 2.0
-  if leftArm and rightArm then
-    width = (rightArm.Position - leftArm.Position).Magnitude
-  end
-  st.aimLateralTimer = st.aimLateralTimer - dt
-  if st.aimLateralTimer <= 0 then
-    st.aimLateralTimer = rRange(0.8, 2.0)
-    local amp = width * C.AIM_LATERAL_AMP
-    local newTarget = rRange(-amp, amp)
-    if math.abs(newTarget - st.aimLateralTarget) > C.AIM_LATERAL_HYST then
-      st.aimLateralTarget = newTarget
-    end
-  end
-  st.aimLateralX = expDecay(st.aimLateralX, st.aimLateralTarget, C.AIM_LATERAL_TAU, dt)
-  return st.aimLateralX
-end
-
-local function computeDynamicAimY(char, cursor, dt)
+local function computeDynamicAimY(char, cursor, dt, commit)
   dt = dt or 0
   local head = char:FindFirstChild("Head")
   local root = char:FindFirstChild("HumanoidRootPart")
   if not root then return nil end
-  local isR6 = char:FindFirstChild("Torso") ~= nil and char:FindFirstChild("UpperTorso") == nil
-  local topY, botY
-  if isR6 then
-    local torso = char:FindFirstChild("Torso")
-    local leftLeg  = char:FindFirstChild("Left Leg")  or char:FindFirstChild("LeftLeg")
-    local rightLeg = char:FindFirstChild("Right Leg") or char:FindFirstChild("RightLeg")
-    if torso then
-      topY = torso.Position.Y + torso.Size.Y * 0.5 + C.AIM_HEAD_OFFSET_Y
-    else
-      topY = (head and head.Position.Y or root.Position.Y + 2.0) + C.AIM_HEAD_OFFSET_Y
+  local s = getAimState(char)
+  local topY = (head and head.Position.Y or root.Position.Y + 2.0) + C.AIM_HEAD_OFFSET_Y
+  local botY = root.Position.Y + C.AIM_FOOT_OFFSET_Y
+  if commit then s.noiseT = s.noiseT + dt end
+  local vary = fbm1(s.noiseT * C.AIM_VARY_FREQ, 400 + s.seed, 2) * C.AIM_VARY_AMP
+  local lo = C.AIM_CENTER_T - C.AIM_BAND_HALF
+  local hi = C.AIM_CENTER_T + C.AIM_BAND_HALF
+  local center = clamp(C.AIM_CENTER_T + s.acqBias + vary, lo, hi)
+  local t = center
+  if cursor then
+    local px, pz = root.Position.X, root.Position.Z
+    local topS = camera:WorldToViewportPoint(Vector3.new(px, topY, pz))
+    local botS = camera:WorldToViewportPoint(Vector3.new(px, botY, pz))
+    local midS = camera:WorldToViewportPoint(Vector3.new(px, (topY + botY) * 0.5, pz))
+    if topS.Z > 0 and botS.Z > 0 and midS.Z > 0 then
+      local span = botS.Y - topS.Y
+      if math.abs(span) >= 1 then
+        local dxC, dyC = cursor.X - midS.X, cursor.Y - midS.Y
+        local proxRadius = math.max(math.abs(span) * C.AIM_PROX_RADIUS_MULT, C.AIM_PROX_RADIUS_MIN)
+        local proxT = clamp(1 - math.sqrt(dxC * dxC + dyC * dyC) / proxRadius, 0, 1)
+        proxT = proxT * proxT * (3 - 2 * proxT)
+        local rawT = clamp((cursor.Y - topS.Y) / span, 0, 1)
+        rawT = rawT ^ (1 + (1 - C.AIM_HEIGHT_CURVE_BIAS) * 0.5)
+        local follow = proxT * C.AIM_FOLLOW_CURSOR
+        t = lerp(center, clamp(rawT, C.AIM_HEAD_T, hi + 0.12), follow)
+      end
     end
-    if leftLeg and rightLeg then
-      local avgLegY  = (leftLeg.Position.Y + rightLeg.Position.Y) * 0.5
-      local legSize  = (leftLeg.Size.Y + rightLeg.Size.Y) * 0.5
-      botY = avgLegY - legSize * 0.5 - 0.25
-    else
-      botY = root.Position.Y - 2.0
-    end
-  else
-    topY = (head and head.Position.Y or root.Position.Y + 2.0) + C.AIM_HEAD_OFFSET_Y
-    botY = root.Position.Y - 2.4
   end
-  if botY >= topY then botY = topY - 1.0 end
-  local topScreen = camera:WorldToViewportPoint(Vector3.new(root.Position.X, topY, root.Position.Z))
-  local botScreen = camera:WorldToViewportPoint(Vector3.new(root.Position.X, botY, root.Position.Z))
-  if topScreen.Z <= 0 or botScreen.Z <= 0 then
-    return root.Position.Y + C.AIM_ROOT_OFFSET_Y
-  end
-  local span = botScreen.Y - topScreen.Y
-  if math.abs(span) < 1 then return root.Position.Y + C.AIM_ROOT_OFFSET_Y end
-  local rawT = clamp((cursor.Y - topScreen.Y) / span, 0, 1)
-  local cursorInsideBody = cursor.Y >= topScreen.Y - 15 and cursor.Y <= botScreen.Y + 15
-  local finalT
-  if cursorInsideBody then
-    finalT = rawT
-  else
-    local regionT = getRegionT()
-    finalT = lerp(regionT, rawT, 0.5)
-  end
-  finalT = finalT ^ (1 + (1 - C.AIM_HEIGHT_CURVE_BIAS) * 0.20)
-  local targetY = lerp(topY, botY, finalT)
-  if not st.aimDynamicY then
-    st.aimDynamicY = targetY
-  else
-    local a = 1 - math.exp(-dt / math.max(C.AIM_HEIGHT_SMOOTH_TAU, 0.001))
-    st.aimDynamicY = st.aimDynamicY + (targetY - st.aimDynamicY) * a
-  end
-  return st.aimDynamicY
+  local targetY = lerp(topY, botY, t)
+  if commit then st.aimDynamicY = targetY end
+  return targetY
 end
-
-local function getAimPoint(char, cursor, dt)
+local function getAimPointRaw(char, cursor, dt, commit)
   dt = dt or 0
-  updateAimRegion(dt)
   if C.AIM_POINT_MODE == "Dynamic" then
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return nil end
-    local y = computeDynamicAimY(char, cursor, dt)
+    local y = computeDynamicAimY(char, cursor, dt, commit)
     if not y then return nil end
-    local lateral = updateLateralAim(dt, char)
-    return Vector3.new(root.Position.X + lateral, y, root.Position.Z)
+    return Vector3.new(root.Position.X, y, root.Position.Z)
   elseif C.AIM_POINT_MODE == "Head" then
     local p = char:FindFirstChild("Head")
     if p and p:IsA("BasePart") then return p.Position + Vector3.new(0, C.AIM_HEAD_OFFSET_Y, 0) end
@@ -1038,38 +1183,56 @@ local function getAimPoint(char, cursor, dt)
   end
   return nil
 end
-
-local function computeThreatScore(char, mr)
-  if not C.TARGET_THREAT_ENABLE then return 0 end
+local function clampToBody(char, pos)
+  if not C.BODY_CLAMP_ENABLE or not pos then return pos end
+  local parts = getBodyParts(char)
+  local n = #parts
+  if n == 0 then return pos end
   local root = char:FindFirstChild("HumanoidRootPart")
-  if not root or not mr then return 0 end
-  local toMe = (mr.Position - root.Position).Unit
-  local charLook = root.CFrame.LookVector
-  local dot = toMe:Dot(charLook)
-  local angle = math.deg(math.acos(clamp(dot, -1, 1)))
-  if angle > C.TARGET_THREAT_ANGLE then return 0 end
-  return (1 - angle / C.TARGET_THREAT_ANGLE) * C.TARGET_THREAT_BONUS
+  local rp = root and root.Position or parts[1].Position
+  local minY, maxY, maxR = math.huge, -math.huge, 0
+  for i = 1, n do
+    local p = parts[i]
+    local ps, sz = p.Position, p.Size
+    local top = ps.Y + sz.Y * 0.5
+    local bot = ps.Y - sz.Y * 0.5
+    if top > maxY then maxY = top end
+    if bot < minY then minY = bot end
+    local dx, dz = ps.X - rp.X, ps.Z - rp.Z
+    local r = math.sqrt(dx * dx + dz * dz) + math.max(sz.X, sz.Z) * 0.5
+    if r > maxR then maxR = r end
+  end
+  local pad = C.BODY_CLAMP_PAD
+  local lo, hi = minY + pad, maxY - pad
+  if lo > hi then lo = (minY + maxY) * 0.5; hi = lo end
+  local y = clamp(pos.Y, lo, hi)
+  local dx, dz = pos.X - rp.X, pos.Z - rp.Z
+  local d = math.sqrt(dx * dx + dz * dz)
+  local lim = math.max(maxR - pad, 0.3)
+  if d > lim then local s = lim / d; dx, dz = dx * s, dz * s end
+  return Vector3.new(rp.X + dx, y, rp.Z + dz)
 end
-
-local function computeHealthScore(char)
-  if not C.TARGET_HEALTH_ENABLE then return 0 end
+local function getAimPoint(char, cursor, dt, commit)
+  return clampToBody(char, getAimPointRaw(char, cursor, dt, commit))
+end
+local function targetAlive(char)
+  if not char or not char.Parent then return false end
   local hum = char:FindFirstChildOfClass("Humanoid")
-  if not hum then return 0 end
-  local hpFrac = hum.Health / math.max(hum.MaxHealth, 1)
-  return (1 - hpFrac) * C.TARGET_HEALTH_BONUS
+  if not hum or hum.Health <= 0 then return false end
+  if hum:GetState() == Enum.HumanoidStateType.Dead then return false end
+  return char:FindFirstChild("HumanoidRootPart") ~= nil
 end
-
 local function getCandidates(cursor, fovR, currentChar, dt)
   dt = dt or 0
-  local mc = player.Character
-  local mr = mc and mc:FindFirstChild("HumanoidRootPart")
+  local mc = player.Character; local mr = mc and mc:FindFirstChild("HumanoidRootPart")
   if not mr then return {} end
   local list, seen = {}, {}
-  local now = tick()
+  local t = clock()
   local function tryAdd(char, maxD, isCurrent)
     if not char or not char.Parent or seen[char] then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum or hum.Health <= 0 then return end
+    if hum:GetState() == Enum.HumanoidStateType.Dead then return end
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return end
     local wd = (root.Position - mr.Position).Magnitude
@@ -1087,18 +1250,14 @@ local function getCandidates(cursor, fovR, currentChar, dt)
       end
     end
     if not bestSpos or bestSd > fovR then return end
-    local visTarget = getAimPoint(char, cursor, dt)
-    if not visTarget then visTarget = root.Position end
+    local visTarget = getAimPoint(char, cursor, dt, false) or root.Position
     local head = findPart(char, "Head")
-    local visible = true
+    local visible, altPos, trueVisible = true, nil, true
     if hasFilter("Visible") then
-      local visCheckPos = visTarget
-      local visPart = char:FindFirstChild("Head") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
-      if visPart then visCheckPos = visPart.Position end
-      visible = canSee(visCheckPos, char, false)
+      visible, altPos = Vis.modelVisible(char, visTarget, isCurrent)
+      trueVisible = visible
       if not visible and isCurrent and C.VIS_GRACE_TIME > 0 then
-        local sinceVis = now - (st.lastTargetVisibleTime or 0)
-        if sinceVis < C.VIS_GRACE_TIME then visible = true end
+        if t - (st.lastTargetVisibleTime or 0) < C.VIS_GRACE_TIME then visible = true end
       end
     end
     if not visible and not isCurrent then return end
@@ -1109,100 +1268,84 @@ local function getCandidates(cursor, fovR, currentChar, dt)
     if hasFilter("NPC") then
       if Players:GetPlayerFromCharacter(char) ~= nil then return end
     end
-    local threatScore = computeThreatScore(char, mr)
-    local healthScore = computeHealthScore(char)
-    local distScore = bestSd * C.TARGET_DIST_WEIGHT
-    local totalScore = distScore - threatScore - healthScore
-    if isCurrent then totalScore = totalScore - C.TARGET_KEEP_BONUS end
-    if not visible then totalScore = totalScore + 5000 end
     seen[char] = true
     table.insert(list, {
-      head = head or root, char = char, spos = bestSpos, sd = bestSd,
-      root = root, wd = wd, isCurrent = isCurrent and true or false,
-      visible = visible, score = totalScore
+      head = head or root, char = char, spos = bestSpos, sd = bestSd, root = root, wd = wd,
+      isCurrent = isCurrent and true or false, visible = visible, trueVisible = trueVisible, altPos = altPos,
     })
   end
   for _, p in Players:GetPlayers() do
     if p ~= player then tryAdd(p.Character, C.RANGE_PLAYER, p.Character == currentChar) end
   end
-  if C.AIM_NPC then
-    for _, npc in ipairs(getNPCs()) do tryAdd(npc, C.RANGE_NPC, npc == currentChar) end
+  if C.AIM_NPC then for _, npc in ipairs(getNPCs()) do tryAdd(npc, C.RANGE_NPC, npc == currentChar) end end
+  local steer = st.steer or 0
+  local umx, umy = st.mouseDeltaX, st.mouseDeltaY
+  local um = vlen(umx, umy)
+  for _, cd in ipairs(list) do
+    local score = cd.sd - (cd.isCurrent and C.TARGET_KEEP_BONUS * (1 - steer) or 0)
+    if um > 0.5 and steer > 0 then
+      local dx, dy = cd.spos.X - cursor.X, cd.spos.Y - cursor.Y
+      local dm = vlen(dx, dy)
+      if dm > 1 then
+        local along = (dx * umx + dy * umy) / (dm * um)
+        score = score - along * C.SWITCH_INTENT_BONUS * steer
+      end
+    end
+    cd.score = score
   end
   table.sort(list, function(a, b) return a.score < b.score end)
   return list
 end
-
 local function acquireTarget(chosen, wasExisting, isNearSwitch, cursor)
-  st.target = chosen.head
-  st.targetChar = chosen.char
-  st.targetJudge = isJudgeChar(chosen.char)
-  st.targetWorldD = chosen.wd
-  st.hist = {}
-  st.lostTimer = 0
-  st.lastTargetPos = nil
+  st.target = chosen.head; st.targetChar = chosen.char
+  st.targetJudge = isJudgeChar(chosen.char); st.targetWorldD = chosen.wd
+  st.hist = {}; st.lostTimer = 0; st.lastTargetPos = nil
   local curX = cursor and cursor.X or 0
   local curY = cursor and cursor.Y or 0
   st.acquireBlend = 0
   st.acquireBlendFromX = curX
   st.acquireBlendFromY = curY
   st.tpActive = 0
-  st.predVelInit = false
-  st.predBlend = 1.0
+  st.predVelInit = false; st.predBlend = 1.0
   st.predConfidence = 1.0
-  st.predVelSmoothX = 0
-  st.predVelSmoothZ = 0
-  st.predVelYSmooth = 0
-  st.predYSmooth = 0
+  st.predVelSmoothX = 0; st.predVelSmoothZ = 0
+  st.predVelYSmooth = 0; st.predYSmooth = 0
   st.targetAirborne = false
-  st.jumpActive = false
-  st.jumpStartTime = 0
-  st.jumpPeakYVel = 0
-  st.jumpApexDetected = false
-  st.jumpApexTime = 0
-  st.lastHistPos = nil
-  st.lastHistTime = 0
-  st.tpIgnoreTimer = 0
+  st.jumpActive = false; st.jumpStartTime = 0; st.jumpPeakYVel = 0
+  st.jumpApexDetected = false; st.jumpApexTime = 0
+  st.lastHistPos = nil; st.lastHistTime = 0; st.tpIgnoreTimer = 0
   st.aimPointPart = nil
-  st.lastTargetVelMag = 0
-  st.zetaSmooth = C.SPRING_ZETA
-  st.saccadeX = 0
-  st.saccadeY = 0
-  st.saccadeTimer = rRange(0.3, 0.9)
-  st.lastTargetValidTime = tick()
-  st.lastTargetVisibleTime = tick()
-  st.predStableTimer = 0
-  st.prevPredVelX = 0
-  st.prevPredVelZ = 0
-  st.predVarSmooth = 0
+  st.lastTargetVelMag = 0; st.zetaSmooth = C.SPRING_ZETA
+  st.saccadeX = 0; st.saccadeY = 0; st.saccadeTimer = rRange(0.3, 0.9)
+  st.lastTargetValidTime = clock()
+  st.lastTargetVisibleTime = clock()
+  st.predStableTimer = 0; st.prevPredVelX = 0; st.prevPredVelZ = 0; st.predVarSmooth = 0
   st.hitboxOffset = Vector3.zero
   st.hitboxOffsetTarget = Vector3.zero
   st.hitboxOffsetTimer = 0
-  st.aimSmoothWorld = nil
-  st.aimPointName = nil
+  st.aimSmoothWorld = nil; st.aimPointName = nil
+  st.aimSmoothLocal = nil; st.aimFallbackPos = nil; st.aimWorldLast = nil
+  st.lastVisWorld = nil; st.hideT = 0; st.hiddenNow = false
+  st.airFlickTimer = 0; st.intentTimer = 0; st.jumpJustStarted = false
   st.aimDynamicY = nil
-  st.lastTargetDirX = 0
-  st.lastTargetDirZ = 0
-  st.lastTargetDirSet = false
-  st.liveDirBoost = 0
-  st.liveStillFactor = 0
-  st.dirChangePending = false
-  st.frozenDirValidUntil = 0
+  aimStates[chosen.char] = nil
+  st.lastTargetDirX = 0; st.lastTargetDirZ = 0; st.lastTargetDirSet = false
+  st.liveDirBoost = 0; st.liveStillFactor = 0
+  st.dirChangePending = false; st.frozenDirValidUntil = 0
   st.reactDelayRolled = false
   st.flickTimer = 0
   st.flickCooldown = 0
-  st.flickPhaseSeed = math.random() * 100
+  st.flickPhaseSeed = rnd() * 100
   st.pulseTimer = 0
   st.pulseTimerNext = 0
   st.pulseRampCurrent = 0
   st.pulseSpeedMultCurrent = 0
   st.doubleTapTimer = rRange(0.4, 1.0)
-  st.doubleTapX = 0
-  st.doubleTapY = 0
+  st.doubleTapX = 0; st.doubleTapY = 0
   st.recentHitTime = nil
   st.returnPauseTimer = 0
   st.returnPulseTimer = 0
-  st.returnPulseDirX = 0
-  st.returnPulseDirY = 0
+  st.returnPulseDirX = 0; st.returnPulseDirY = 0
   st.returnPulseMag = 0
   st.returnCooldown = 0
   st.yankDetected = false
@@ -1219,7 +1362,7 @@ local function acquireTarget(chosen, wasExisting, isNearSwitch, cursor)
   st.smartFlickHoldTimer = 0
   st.smartFlickActive = false
   st.smartFlickTriggered = false
-  st.smartFlickPhaseSeed = math.random() * 100
+  st.smartFlickPhaseSeed = rnd() * 100
   st.smlScreenVelInit = false
   st.smlTargetScreenVelX = 0
   st.smlTargetScreenVelY = 0
@@ -1228,21 +1371,6 @@ local function acquireTarget(chosen, wasExisting, isNearSwitch, cursor)
   st.microPauseTimer = rRange(C.MICRO_PAUSE_TIMER_MIN, C.MICRO_PAUSE_TIMER_MAX)
   st.microPauseHold = 0
   st.microPauseScale = 1.0
-  st.aimLateralX = 0
-  st.aimLateralTarget = 0
-  st.aimLateralTimer = 0
-  st.aimRegionIndex = 1
-  st.aimRegionTimer = 0
-  st.blinkTimer = rRange(1.5, 3.5)
-  st.blinkHold = 0
-  st.prevErrorMag = nil
-  st.overshootTimer = 0
-  st.anticipateX = 0
-  st.anticipateY = 0
-  st.smoothErrorX = 0
-  st.smoothErrorY = 0
-  st.escapeIntent = 0
-  st.escapeHoldTimer = 0
   rerollAll()
   if wasExisting and st.aimScreenInit then
     st.switchFromX = curX
@@ -1257,11 +1385,10 @@ local function acquireTarget(chosen, wasExisting, isNearSwitch, cursor)
     else
       st.switchBlendDuration = C.SMART_SWITCH_FAR_BLEND
       st.switchIsNear = false
-      st.springVX = 0; st.springVY = 0
-      st.springVsX = 0; st.springVsY = 0
-      st.springVsInit = true
+      st.springVX = 0; st.springVY = 0; st.springVsX = 0; st.springVsY = 0; st.springVsInit = true
       st.spotX, st.spotY = 0, 0
       st.acquireEnvT = 0
+      st.lockAge = 0
     end
     st.switchBlendTimer = st.switchBlendDuration
   else
@@ -1269,16 +1396,14 @@ local function acquireTarget(chosen, wasExisting, isNearSwitch, cursor)
     st.switchIsNear = false
     st.switchBlendDuration = C.SWITCH_BLEND_TIME
     st.adaptVel = Vector3.zero
-    st.springVX = 0; st.springVY = 0
-    st.springVsX = 0; st.springVsY = 0
-    st.springVsInit = true
+    st.springVX = 0; st.springVY = 0; st.springVsX = 0; st.springVsY = 0; st.springVsInit = true
     st.spotX, st.spotY = 0, 0
     st.acquireEnvT = 0
+    st.lockAge = 0
   end
   st.lostFade = 1
   st.lostCoastTimer = 0
 end
-
 local function dropTarget()
   st.target, st.targetChar = nil, nil
   st.hist = {}
@@ -1293,23 +1418,19 @@ local function dropTarget()
   st.aimPointVisible = true
   st.aimPointNotVisibleSince = 0
   st.aimDynamicY = nil
-  st.prevErrorMag = nil
-  st.overshootTimer = 0
-  st.escapeIntent = 0
-  st.escapeHoldTimer = 0
+  st.aimSmoothLocal = nil
+  st.aimFallbackPos = nil
 end
-
 local function updateYankDetection(dt)
-  -- Desactivado por STICKY_YANK_ENABLE = false
   if not C.STICKY_YANK_ENABLE then return end
   if not st.target or not st.targetChar or not st.targetChar.Parent then return end
   local root = st.targetChar:FindFirstChild("HumanoidRootPart")
   if not root then return end
   local sp = camera:WorldToViewportPoint(root.Position)
   if sp.Z <= 0 then return end
-  local now = tick()
+  local t = clock()
   if st.lastTargetScreenInit then
-    local dtime = now - st.lastTargetScreenTime
+    local dtime = t - st.lastTargetScreenTime
     if dtime > 0.001 and dtime < C.STICKY_YANK_TIME then
       local dx = sp.X - st.lastTargetScreenX
       local dy = sp.Y - st.lastTargetScreenY
@@ -1322,23 +1443,32 @@ local function updateYankDetection(dt)
   end
   st.lastTargetScreenX = sp.X
   st.lastTargetScreenY = sp.Y
-  st.lastTargetScreenTime = now
+  st.lastTargetScreenTime = t
   st.lastTargetScreenInit = true
 end
-
+local function userAlong()
+  local um = vlen(st.mouseDeltaX, st.mouseDeltaY)
+  local em = vlen(st.lastErrX, st.lastErrY)
+  if um < 0.001 or em < 0.5 then return nil end
+  return (st.mouseDeltaX * st.lastErrX + st.mouseDeltaY * st.lastErrY) / (um * em)
+end
 local function updateUserMove(dt)
   if not C.USER_MOVE_REDUCE_ENABLE then st.userMoveInf = 0; return end
   local spd = st.mouseSpeedSmooth or 0
   local demand = 0
   if spd > C.USER_MOVE_VEL_THRESH then
-    local t = clamp((spd - C.USER_MOVE_VEL_THRESH) / C.USER_MOVE_VEL_THRESH, 0, 1)
-    demand = t
+    demand = clamp((spd - C.USER_MOVE_VEL_THRESH) / C.USER_MOVE_VEL_THRESH, 0, 1)
+    local um = vlen(st.mouseDeltaX, st.mouseDeltaY)
+    local em = vlen(st.lastErrX, st.lastErrY)
+    if um > 0.001 and em > 0.5 then
+      local along = (st.mouseDeltaX * st.lastErrX + st.mouseDeltaY * st.lastErrY) / (um * em)
+      demand = demand * (1 - C.USER_MOVE_ALONG_RELIEF * smoothstep(0.15, 0.75, along))
+    end
   end
   local tau = (demand > st.userMoveInf) and C.USER_MOVE_ATTACK_TAU or C.USER_MOVE_RELEASE_TAU
   st.userMoveInf = expDecay(st.userMoveInf, demand, tau, dt)
   if st.userMoveInf < 0.003 then st.userMoveInf = 0 end
 end
-
 local function updateUserYank(dt)
   if not C.USER_YANK_ENABLE then return end
   local spd = st.mouseSpeedSmooth or 0
@@ -1360,144 +1490,150 @@ local function updateUserYank(dt)
   end
   if st.userYankTimer > 0 then
     st.userYankTimer = st.userYankTimer - dt
-    if st.smartFlickActive and st.smartFlickHoldTimer > 0
-       and (st.mouseSpeedSmooth or 0) > C.USER_YANK_VEL_THRESH * 0.6 then
+    if st.smartFlickActive and st.smartFlickHoldTimer > 0 and (st.mouseSpeedSmooth or 0) > C.USER_YANK_VEL_THRESH * 0.6 then
       st.smartFlickHoldTimer = 0
       st.smartFlickActive = false
       st.smartFlickCooldown = C.SMART_FLICK_COOLDOWN
     end
   end
 end
-
 local function updateStickyTimers(dt)
   if st.yankDetected then
     st.yankTimer = st.yankTimer - dt
-    if st.yankTimer <= 0 then dropTarget(); return end
-  end
-end
-
--- ===== NUEVO selectTarget: NUNCA suelta por estar fuera de FOV =====
--- Solo suelta si el usuario tiene intención clara de escape (jala opuesto al aim)
-local function selectTarget(cursor, dt)
-  local c = getCandidates(cursor, C.FOV, st.targetChar, dt)
-  local escapeIntent = computeUserEscapeIntent()
-  st.escapeIntent = escapeIntent
-
-  -- Verificar si target actual sigue vivo
-  local hasValid = st.target and st.targetChar and st.targetChar.Parent
-  if hasValid then
-    local hum = st.targetChar:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then hasValid = false end
-  end
-
-  if #c == 0 then
-    -- NO hay nadie en FOV. Mantener el target SIEMPRE.
-    if not hasValid then
-      if st.target then dropTarget() end
+    if st.yankTimer <= 0 then
+      dropTarget()
       return
     end
-
-    -- Solo soltar si el escape intent es MUY fuerte Y sostenido
-    if escapeIntent >= C.USER_ESCAPE_RELEASE_THRESH then
-      st.escapeHoldTimer = st.escapeHoldTimer + dt
-      if st.escapeHoldTimer >= C.USER_ESCAPE_HOLD_TIME then
-        dropTarget()
+  end
+end
+local function selectTarget(cursor, dt)
+  if st.targetChar and not targetAlive(st.targetChar) then
+    dropTarget()
+    st.lostFade = 0
+    if C.DEAD_DROP_IMMEDIATE then
+      st.springVX = st.springVX * 0.25; st.springVY = st.springVY * 0.25
+      st.springVsX = st.springVsX * 0.25; st.springVsY = st.springVsY * 0.25
+    end
+  end
+  local steer = clamp((st.mouseSpeedSmooth or 0) / C.SWITCH_STEER_SPEED, 0, 1)
+  st.steer = steer
+  do
+    local um = vlen(st.mouseDeltaX, st.mouseDeltaY)
+    local em = vlen(st.lastErrX, st.lastErrY)
+    local away = false
+    if st.target and um > 0.5 and em > 3 and (st.mouseSpeedSmooth or 0) > C.RELEASE_INTENT_SPEED then
+      local along = (st.mouseDeltaX * st.lastErrX + st.mouseDeltaY * st.lastErrY) / (um * em)
+      if along < C.RELEASE_INTENT_ALONG then away = true end
+    end
+    if away then st.releaseT = st.releaseT + dt else st.releaseT = math.max(st.releaseT - dt * 2, 0) end
+    st.userRelease = st.releaseT > C.RELEASE_INTENT_TIME
+  end
+  local c = getCandidates(cursor, C.FOV, st.targetChar, dt)
+  if #c == 0 then
+    if st.target and st.targetChar and st.targetChar.Parent then
+      if st.yankDetected then
+        st.yankTimer = st.yankTimer - dt
+        if st.yankTimer <= 0 then dropTarget(); return end
+      end
+      local sinceValid = clock() - (st.lastTargetValidTime or 0)
+      local graceTime = C.TARGET_GRACE_TIME
+      if C.STICKY_ENABLE then
+        local velMag = st.lastTargetVelMag or 0
+        local t = clamp((velMag - C.STICKY_FAST_VEL_MIN) / math.max(C.STICKY_FAST_VEL_MAX - C.STICKY_FAST_VEL_MIN, 1), 0, 1)
+        graceTime = C.STICKY_OUT_OF_FOV_TIME + C.STICKY_FAST_EXTRA * t
+      end
+      if st.userRelease then graceTime = 0 end
+      if sinceValid < graceTime then
+        st.lostFade = expDecay(st.lostFade, 1, 0.15, dt)
         return
       end
-    else
-      st.escapeHoldTimer = 0
     end
-
-    -- Mantener - no soltar por FOV
-    st.lostFade = expDecay(st.lostFade, 1, 0.15, dt)
+    if st.target then
+      st.lostFade = expDecay(st.lostFade, 0, C.TAU_LOST, dt)
+      if st.lostFade < 0.02 then dropTarget() end
+    end
     return
   end
-
   local bestCandidate = c[1]
   local bestIsCurrent = st.targetChar and bestCandidate.char == st.targetChar
-
   if bestIsCurrent then
     st.targetWorldD = bestCandidate.wd
     st.lostTimer = 0
-    st.lastTargetValidTime = tick()
-    st.lastTargetVisibleTime = tick()
+    st.lastTargetValidTime = clock()
+    if bestCandidate.trueVisible then st.lastTargetVisibleTime = clock() end
     st.lostFade = expDecay(st.lostFade, 1, 0.08, dt)
     st.stickyOutTimer = 0
-    st.escapeHoldTimer = 0
     return
   end
-
-  -- Hay candidato en FOV distinto al current. ¿Cambiar?
-  -- REGLA: solo cambiar si el usuario tiene intención clara de escape
-  if not hasValid then
-    -- No hay current, adquirir el candidato
-    local isNear = false
-    if C.SMART_SWITCH_ENABLE and st.aimScreenInit and bestCandidate.spos then
-      local dx = bestCandidate.spos.X - cursor.X
-      local dy = bestCandidate.spos.Y - cursor.Y
-      local d = math.sqrt(dx * dx + dy * dy)
-      if d <= C.SMART_SWITCH_NEAR_SCREEN then isNear = true end
+  if st.yankDetected then
+    st.yankTimer = st.yankTimer - dt
+    if st.yankTimer <= 0 then
+      dropTarget()
+    else
+      if st.target and st.targetChar and st.targetChar.Parent then return end
     end
-    acquireTarget(bestCandidate, st.target ~= nil, isNear, cursor)
-    st.lastSwitchTime = tick()
-    return
   end
-
-  -- Current válido → solo cambiar con escape intent
-  if escapeIntent >= C.USER_ESCAPE_RELEASE_THRESH then
-    st.escapeHoldTimer = st.escapeHoldTimer + dt
-    if st.escapeHoldTimer >= C.USER_ESCAPE_HOLD_TIME then
-      local isNear = false
-      if C.SMART_SWITCH_ENABLE and st.aimScreenInit and bestCandidate.spos then
+  local shouldSwitch = false
+  if not st.target or not st.targetChar or not st.targetChar.Parent then
+    shouldSwitch = true
+  else
+    local currentSd, currentScore, currentVis = nil, nil, true
+    for _, cand in ipairs(c) do
+      if cand.char == st.targetChar then currentSd = cand.sd; currentScore = cand.score; currentVis = cand.trueVisible; break end
+    end
+    if not currentSd then
+      local sinceValid = clock() - (st.lastTargetValidTime or 0)
+      if sinceValid > C.TARGET_GRACE_TIME and (steer > 0.3 or st.userRelease or sinceValid > C.STICKY_OUT_OF_FOV_TIME) then shouldSwitch = true end
+    elseif bestCandidate.score + C.TARGET_SWITCH_MARGIN * (1 - steer) < (currentScore or currentSd) and (steer > 0.15 or not currentVis or st.userRelease) then
+      shouldSwitch = true
+    end
+  end
+  if shouldSwitch then
+    local isNear = false
+    if C.SMART_SWITCH_ENABLE and st.targetChar and st.aimScreenInit then
+      if bestCandidate.spos then
         local dx = bestCandidate.spos.X - cursor.X
         local dy = bestCandidate.spos.Y - cursor.Y
         local d = math.sqrt(dx * dx + dy * dy)
         if d <= C.SMART_SWITCH_NEAR_SCREEN then isNear = true end
       end
-      acquireTarget(bestCandidate, true, isNear, cursor)
-      st.lastSwitchTime = tick()
-      st.escapeHoldTimer = 0
-      return
     end
-  else
-    st.escapeHoldTimer = 0
+    acquireTarget(bestCandidate, st.target ~= nil, isNear, cursor)
+    st.lastSwitchTime = clock()
+    return
   end
-
-  -- Mantener target actual
-  st.lostFade = expDecay(st.lostFade, 1, 0.10, dt)
+  if st.target and st.targetChar and st.targetChar.Parent then
+    st.lostFade = expDecay(st.lostFade, 1, 0.10, dt)
+    return
+  end
+  if st.target then
+    st.lostFade = expDecay(st.lostFade, 0, C.TAU_LOST, dt)
+    if st.lostFade < 0.02 then dropTarget() end
+  end
 end
-
 local function pushHistory(rootPos)
-  local now = tick()
+  local t = clock()
   if st.lastHistPos and st.lastHistTime > 0 then
-    local dt_ = now - st.lastHistTime
+    local dt_ = t - st.lastHistTime
     if dt_ > 0.0001 then
       local jump = (rootPos - st.lastHistPos).Magnitude
       local vel = jump / dt_
       if jump > C.PRED_SAMPLE_MAX_JUMP or vel > C.PRED_SAMPLE_MAX_VEL then
-        st.hist = {}
-        st.tpIgnoreTimer = C.PRED_TP_RESET_TIME
-        st.predVelInit = false
-        st.predVelSmoothX = 0
-        st.predVelSmoothZ = 0
+        st.hist = {}; st.tpIgnoreTimer = C.PRED_TP_RESET_TIME
+        st.predVelInit = false; st.predVelSmoothX = 0; st.predVelSmoothZ = 0
         st.predVelYSmooth = 0
-        st.lastHistPos = rootPos
-        st.lastHistTime = now
-        table.insert(st.hist, {pos = rootPos, t = now})
-        return
+        st.lastHistPos = rootPos; st.lastHistTime = t
+        table.insert(st.hist, {pos = rootPos, t = t}); return
       end
     end
   end
-  if st.lastHistTime > 0 and (now - st.lastHistTime) < C.PRED_HIST_SAMPLE_MIN_DT then return end
-  table.insert(st.hist, {pos = rootPos, t = now})
+  if st.lastHistTime > 0 and (t - st.lastHistTime) < C.PRED_HIST_SAMPLE_MIN_DT then return end
+  table.insert(st.hist, {pos = rootPos, t = t})
   while #st.hist > C.PRED_HISTORY do table.remove(st.hist, 1) end
-  st.lastHistPos = rootPos
-  st.lastHistTime = now
+  st.lastHistPos = rootPos; st.lastHistTime = t
 end
-
 local function computeBlendedVelocity()
-  local n = #st.hist
-  if n < 2 then return Vector3.zero end
+  local n = #st.hist; if n < 2 then return Vector3.zero end
   local a, b = st.hist[n - 1], st.hist[n]
   local dtI = math.max(b.t - a.t, 0.001)
   local instX = (b.pos.X - a.pos.X) / dtI
@@ -1522,14 +1658,13 @@ local function computeBlendedVelocity()
     instX = hX; instY = hY; instZ = hZ
   end
   local targetAdapt = Vector3.new(hX, hY, hZ)
-  st.adaptVel = st.adaptVel:Lerp(targetAdapt, math.min(1, 0.35))
+  st.adaptVel = st.adaptVel:Lerp(targetAdapt, math.min(1, 0.22))
   local wTotal = C.PRED_W_INSTANT + C.PRED_W_HISTORY + C.PRED_W_ADAPT
   local bx = (instX * C.PRED_W_INSTANT + hX * C.PRED_W_HISTORY + st.adaptVel.X * C.PRED_W_ADAPT) / wTotal
   local by = (instY * C.PRED_W_INSTANT + hY * C.PRED_W_HISTORY + st.adaptVel.Y * C.PRED_W_ADAPT) / wTotal
   local bz = (instZ * C.PRED_W_INSTANT + hZ * C.PRED_W_HISTORY + st.adaptVel.Z * C.PRED_W_ADAPT) / wTotal
   return Vector3.new(bx, by, bz)
 end
-
 local function updatePredictability(vel, dt)
   local vmag = math.sqrt(vel.X * vel.X + vel.Z * vel.Z)
   if vmag > 0.3 then
@@ -1543,7 +1678,6 @@ local function updatePredictability(vel, dt)
     st.predictability = expDecay(st.predictability, 0.5, 0.5, dt)
   end
 end
-
 local function updateVelocityInertia(vel, dt)
   local srcX, srcZ = vel.X, vel.Z
   local srcY = vel.Y
@@ -1552,71 +1686,68 @@ local function updateVelocityInertia(vel, dt)
   if vmag > C.PRED_INERTIA_FAST_VEL then tau = C.PRED_INERTIA_FAST_TAU * st.predInertiaVar end
   if not st.predVelInit then
     st.predVelX = srcX; st.predVelY = srcY; st.predVelZ = srcZ
-    st.predVelSmoothX = srcX; st.predVelSmoothZ = srcZ; st.predVelYSmooth = srcY
+    st.predVelSmoothX = srcX; st.predVelSmoothZ = srcZ
+    st.predVelYSmooth = srcY
     st.predVelInit = true; st.prevPredVelX = srcX; st.prevPredVelZ = srcZ
   else
     st.prevPredVelX = st.predVelX; st.prevPredVelZ = st.predVelZ
     st.predVelX = expDecay(st.predVelX, srcX, tau, dt)
-    st.predVelY = expDecay(st.predVelY, srcY, tau, dt)
+    st.predVelY = expDecay(st.predVelY, srcY, 0.05, dt)
     st.predVelZ = expDecay(st.predVelZ, srcZ, tau, dt)
   end
   st.predVelSmoothX = expDecay(st.predVelSmoothX, st.predVelX, C.PRED_VEL_EMA_TAU, dt)
   st.predVelSmoothZ = expDecay(st.predVelSmoothZ, st.predVelZ, C.PRED_VEL_EMA_TAU, dt)
-  st.predVelYSmooth = expDecay(st.predVelYSmooth, st.predVelY, 0.050, dt)
-  local varX = srcX - st.predVelSmoothX
-  local varZ = srcZ - st.predVelSmoothZ
+  st.predVelYSmooth = expDecay(st.predVelYSmooth, st.predVelY, 0.04, dt)
+  local varX = srcX - st.predVelSmoothX; local varZ = srcZ - st.predVelSmoothZ
   local variance = math.sqrt(varX * varX + varZ * varZ)
-  st.predVarSmooth = expDecay(st.predVarSmooth, variance, 0.060, dt)
-  st.lastTargetVelMag = math.sqrt(st.predVelSmoothX ^ 2 + st.predVelSmoothZ ^ 2)
+  st.predVarSmooth = expDecay(st.predVarSmooth, variance, 0.10, dt)
+  st.lastTargetVelMag = math.sqrt(st.predVelSmoothX * st.predVelSmoothX + st.predVelSmoothZ * st.predVelSmoothZ)
 end
-
 local function computeYPredict(dt)
   if not C.PRED_Y_ENABLE then
     st.predYSmooth = expDecay(st.predYSmooth, 0, C.PRED_Y_SMOOTH_TAU, dt)
     return st.predYSmooth
   end
   local vy = st.predVelYSmooth
+  local rootT = st.targetChar and st.targetChar:FindFirstChild("HumanoidRootPart")
+  if rootT then
+    local rv = rootT.AssemblyLinearVelocity.Y
+    if math.abs(rv) > 1 then vy = vy * 0.5 + rv * 0.5 end
+  end
   local inAir = st.targetAirborne
-  local now = tick()
+  local t = clock()
   if inAir and vy > C.PRED_Y_JUMP_DETECT_VEL then
     if not st.jumpActive then
       st.jumpActive = true
-      st.jumpStartTime = now
+      st.jumpStartTime = t
       st.jumpPeakYVel = vy
       st.jumpApexDetected = false
       st.jumpApexTime = 0
+      st.jumpJustStarted = true
+      st.jumpV0 = vy
     end
-    if vy > st.jumpPeakYVel then st.jumpPeakYVel = vy end
+    if vy > st.jumpPeakYVel then st.jumpPeakYVel = vy; st.jumpV0 = vy end
     if not st.jumpApexDetected and vy < st.jumpPeakYVel * C.PRED_Y_APEX_RATIO then
       st.jumpApexDetected = true
-      st.jumpApexTime = now
+      st.jumpApexTime = t
     end
   elseif not inAir then
     st.jumpActive = false
     st.jumpApexDetected = false
   end
   local py = 0
-  if st.jumpActive and st.jumpApexDetected then
-    local el = now - st.jumpApexTime
-    local rise = C.PRED_Y_PULSE_RISE
-    local fall = C.PRED_Y_PULSE_FALL
-    local amp = C.PRED_Y_PULSE_AMP
-    if el < rise then
-      local t = el / rise
-      py = amp * (1 - (1 - t) * (1 - t))
-    elseif el < rise + fall then
-      local t = (el - rise) / fall
-      py = amp * (1 - t * t)
+  if inAir then
+    local g = workspace.Gravity
+    if vy > 0 then
+      py = math.min(vy * C.AIR_LEAD_RISE, (vy * vy) / (2 * g))
     else
-      py = 0
-      st.jumpActive = false
-      st.jumpApexDetected = false
+      py = vy * C.AIR_LEAD_FALL
     end
+    py = clamp(py, -C.AIR_Y_MAX, C.AIR_Y_MAX)
   end
   st.predYSmooth = expDecay(st.predYSmooth, py, C.PRED_Y_SMOOTH_TAU, dt)
   return st.predYSmooth
 end
-
 local function computePredictionConfidence(dt)
   local conf = 1.0
   if st.predVarSmooth > C.PRED_VARIANCE_MAX then
@@ -1627,19 +1758,19 @@ local function computePredictionConfidence(dt)
     local under = C.PRED_CONSISTENCY_MIN - st.predictability
     conf = conf * clamp(1 - under * C.PRED_CONFIDENCE_CONSIST_PENALTY, 0.0, 1.0)
   end
-  if st.dirChangePending then conf = conf * C.PRED_CONFIDENCE_DIRCHANGE_PENALTY end
+  if st.dirChangePending then
+    conf = conf * C.PRED_CONFIDENCE_DIRCHANGE_PENALTY
+  end
   conf = math.max(C.PRED_CONFIDENCE_MIN, conf)
   st.predConfidence = expDecay(st.predConfidence or 1.0, conf, C.PRED_CONFIDENCE_SMOOTH_TAU, dt)
   return st.predConfidence
 end
-
 local function computePredictionOffset(vel, dt)
   if st.tpIgnoreTimer > 0 then
     st.tpIgnoreTimer = st.tpIgnoreTimer - dt
     return Vector3.zero
   end
-  local pvx = st.predVelSmoothX
-  local pvz = st.predVelSmoothZ
+  local pvx = st.predVelSmoothX; local pvz = st.predVelSmoothZ
   local vmag = math.sqrt(pvx * pvx + pvz * pvz)
   local py = computeYPredict(dt)
   if vmag < C.PRED_MIN_VEL then return Vector3.new(0, py, 0) end
@@ -1649,24 +1780,21 @@ local function computePredictionOffset(vel, dt)
   local vFactor = clamp((vmag - C.PRED_MIN_VEL) / (C.PRED_MAX_VEL - C.PRED_MIN_VEL), 0, 1)
   vFactor = vFactor ^ C.PRED_CURVE
   local scale = C.PRED_LEAD * vFactor * ramp * conf * st.predVar * (st.predBlend or 1.0)
+  scale = scale * lerp(1, C.PRED_FAR_MULT, smoothstep(C.PRED_FAR_START, C.PRED_FAR_END, st.targetWorldD or 0))
   local px = pvx * scale
   local pz = pvz * scale
   if C.PRED_CLOSE_ENABLE and st.targetWorldD then
     local t = clamp((st.targetWorldD - C.PRED_CLOSE_NEAR) / math.max(C.PRED_CLOSE_FAR - C.PRED_CLOSE_NEAR, 1), 0, 1)
     t = t * t * (3 - 2 * t)
     local closeScale = lerp(C.PRED_CLOSE_MIN_SCALE, 1.0, t)
-    px = px * closeScale
-    py = py * closeScale
-    pz = pz * closeScale
+    px = px * closeScale; py = py * closeScale; pz = pz * closeScale
   end
   local hMag = math.sqrt(px * px + pz * pz)
   if hMag > C.PRED_MAX then
-    local s = C.PRED_MAX / hMag
-    px, pz = px * s, pz * s
+    local s = C.PRED_MAX / hMag; px, pz = px * s, pz * s
   end
   return Vector3.new(px, py, pz)
 end
-
 local function applySurfacePrediction(predOffset)
   if not C.SURFACE_PREDICT_ENABLE then return predOffset end
   if not st.targetChar or not st.targetChar.Parent then return predOffset end
@@ -1677,8 +1805,7 @@ local function applySurfacePrediction(predOffset)
   local velMag = math.sqrt(velX * velX + velZ * velZ)
   if velMag < C.SURFACE_PREDICT_VEL_MIN then return predOffset end
   local dirX, dirZ = velX / velMag, velZ / velMag
-  local horizPx = predOffset.X
-  local horizPz = predOffset.Z
+  local horizPx = predOffset.X; local horizPz = predOffset.Z
   local horizMag = math.sqrt(horizPx * horizPx + horizPz * horizPz)
   if horizMag < 0.1 then return predOffset end
   local rp = RaycastParams.new()
@@ -1686,8 +1813,8 @@ local function applySurfacePrediction(predOffset)
   local ex = {}
   if st.targetChar then table.insert(ex, st.targetChar) end
   if player.Character then table.insert(ex, player.Character) end
-  rp.FilterDescendantsInstances = ex
-  rp.IgnoreWater = true
+  rp.FilterDescendantsInstances = ex; rp.IgnoreWater = true
+  pcall(function() rp.RespectCanCollide = C.WB_RESPECT_CANCOLLIDE end)
   local castLen = math.min(C.SURFACE_PREDICT_MAX_CAST, horizMag + C.SURFACE_PREDICT_MARGIN * 2 + 3)
   local castVec = Vector3.new(dirX, 0, dirZ) * castLen
   local result = workspace:Raycast(root.Position, castVec, rp)
@@ -1712,7 +1839,6 @@ local function applySurfacePrediction(predOffset)
   end
   return predOffset
 end
-
 local function updateAimDrift(dt, eMag)
   st.aimDriftT = st.aimDriftT + dt
   if eMag > C.AIM_DRIFT_RANGE then return 0, 0 end
@@ -1723,7 +1849,6 @@ local function updateAimDrift(dt, eMag)
   local dy = fbm1(st.aimDriftT * C.AIM_DRIFT_FREQ * fMod * 0.87, 132, 3) * C.AIM_DRIFT_AMP_Y * nearMul
   return dx, dy
 end
-
 local function updateAimSpot(dt)
   st.spotTimer = st.spotTimer - dt
   if st.spotTimer <= 0 then
@@ -1738,7 +1863,6 @@ local function updateAimSpot(dt)
   st.spotX = expDecay(st.spotX, st.spotTX + nx, C.AIM_SPOT_TAU, dt)
   st.spotY = expDecay(st.spotY, st.spotTY + ny, C.AIM_SPOT_TAU, dt)
 end
-
 local function updateBreathing(dt, targetVelMag, eMag)
   st.breathT = st.breathT + dt
   local idle = clamp(1 - targetVelMag / C.BREATH_VEL_THRESH, 0, 1)
@@ -1755,14 +1879,13 @@ local function updateBreathing(dt, targetVelMag, eMag)
   local bz = fbm1(st.breathT * C.BREATH_FREQ_Z * freqModZ, 103, 3) * C.BREATH_AMP_Z * amt
   return bx, by, bz
 end
-
 local function updateSaccades(dt, eMag)
   st.saccadeTimer = st.saccadeTimer - dt
   if st.saccadeTimer <= 0 then
     st.saccadeTimer = rRange(C.SACCADE_MIN_INTERVAL, C.SACCADE_MAX_INTERVAL)
     local proxScale = clamp(1 - eMag / C.SACCADE_NEAR_SCALE, 0, 1)
-    if math.random() < C.SACCADE_CHANCE * proxScale and eMag < C.SACCADE_ACTIVE_RANGE then
-      local ang = math.random() * math.pi * 2
+    if rnd() < C.SACCADE_CHANCE * proxScale and eMag < C.SACCADE_ACTIVE_RANGE then
+      local ang = rnd() * math.pi * 2
       local mag = rRange(0.4, 1.0) * C.SACCADE_AMP
       st.saccadeX = math.cos(ang) * mag * C.SACCADE_X_SCALE
       st.saccadeY = math.sin(ang) * mag * 0.65
@@ -1772,7 +1895,6 @@ local function updateSaccades(dt, eMag)
   st.saccadeY = expDecay(st.saccadeY, 0, C.SACCADE_DECAY_TAU, dt)
   return st.saccadeX, st.saccadeY
 end
-
 local function updateTremor(dt, eMag)
   st.tremorT = st.tremorT + dt
   if eMag > C.TREMOR_ACTIVE_RANGE then return 0, 0 end
@@ -1785,7 +1907,6 @@ local function updateTremor(dt, eMag)
   local ty = math.cos(st.tremorT * 2 * math.pi * C.TREMOR_FREQ * freqMod * 1.07) * amp * 0.55
   return tx, ty
 end
-
 local function updateVerticalMicro(dt, eMag, errorY)
   st.vertMicroT = st.vertMicroT + dt
   if eMag > C.VERT_MICRO_RANGE then return 0 end
@@ -1794,16 +1915,16 @@ local function updateVerticalMicro(dt, eMag, errorY)
   local fMod = 1 + n1(st.vertMicroT * 0.18, 120) * C.VERT_MICRO_FREQ_MOD
   local aMod = 1 + n1(st.vertMicroT * 0.42, 121) * 0.45
   local m = fbm1(st.vertMicroT * C.VERT_MICRO_FREQ_BASE * fMod, 122, 3) * C.VERT_MICRO_AMP * rangeT * aMod
+  if errorY < -2 then m = m * 1.35 end
   return m
 end
-
 local function updateDoubleTap(dt, eMag)
   if not C.DOUBLE_TAP_ENABLE then return 0, 0 end
   st.doubleTapTimer = st.doubleTapTimer - dt
   if st.doubleTapTimer <= 0 then
     st.doubleTapTimer = rRange(C.DOUBLE_TAP_MIN_INTERVAL, C.DOUBLE_TAP_MAX_INTERVAL)
-    if eMag > 3.0 and eMag < 40.0 and math.random() < C.DOUBLE_TAP_CHANCE then
-      local ang = math.random() * math.pi * 2
+    if eMag > 3.0 and eMag < 40.0 and rnd() < C.DOUBLE_TAP_CHANCE then
+      local ang = rnd() * math.pi * 2
       local mag = C.DOUBLE_TAP_AMP * rRange(0.6, 1.0)
       st.doubleTapX = math.cos(ang) * mag
       st.doubleTapY = math.sin(ang) * mag
@@ -1813,13 +1934,12 @@ local function updateDoubleTap(dt, eMag)
   st.doubleTapY = expDecay(st.doubleTapY, 0, C.DOUBLE_TAP_TAU, dt)
   return st.doubleTapX, st.doubleTapY
 end
-
 local function updateGait(dt)
   if not C.GAIT_ENABLE then st.gaitMul = 1.0; return end
   st.gaitPhase = st.gaitPhase + dt / math.max(st.gaitPeriod, 0.05)
   if st.gaitPhase >= 1 then
     st.gaitPhase = 0
-    if math.random() < C.GAIT_PAUSE_CHANCE then
+    if rnd() < C.GAIT_PAUSE_CHANCE then
       st.gaitPeriod = rRange(0.30, 0.55)
     else
       st.gaitPeriod = rRange(C.GAIT_PERIOD_MIN, C.GAIT_PERIOD_MAX)
@@ -1828,7 +1948,6 @@ local function updateGait(dt)
   local curve = bell(st.gaitPhase)
   st.gaitMul = lerp(1.0, curve * 1.2 + 0.25, C.GAIT_CURVE_DEPTH)
 end
-
 local function updateMicroPause(dt)
   if not C.MICRO_PAUSE_ENABLE then st.microPauseScale = 1.0; return end
   if st.microPauseHold > 0 then
@@ -1841,7 +1960,7 @@ local function updateMicroPause(dt)
   else
     st.microPauseTimer = st.microPauseTimer - dt
     if st.microPauseTimer <= 0 then
-      if math.random() < C.MICRO_PAUSE_CHANCE then
+      if rnd() < C.MICRO_PAUSE_CHANCE then
         st.microPauseHold = rRange(C.MICRO_PAUSE_HOLD_MIN, C.MICRO_PAUSE_HOLD_MAX)
       else
         st.microPauseTimer = rRange(0.30, 0.70)
@@ -1850,104 +1969,6 @@ local function updateMicroPause(dt)
     st.microPauseScale = expDecay(st.microPauseScale, 1.0, 0.080, dt)
   end
 end
-
-local function updateMicroCorrect(dt, eMag)
-  if not C.MICRO_CORRECT_ENABLE then return 0, 0 end
-  if eMag > C.MICRO_CORRECT_RANGE then return 0, 0 end
-  local rangeT = 1 - (eMag / C.MICRO_CORRECT_RANGE)
-  rangeT = rangeT * rangeT
-  st.microCorrectT = st.microCorrectT + dt
-  local fMod = 1 + n1(st.microCorrectT * 0.22, 210) * 0.35
-  local mx = math.sin(st.microCorrectT * 2 * math.pi * C.MICRO_CORRECT_FREQ * fMod) * C.MICRO_CORRECT_AMP * rangeT
-  local my = math.cos(st.microCorrectT * 2 * math.pi * C.MICRO_CORRECT_FREQ * fMod * 1.13) * C.MICRO_CORRECT_AMP * rangeT * 0.7
-  return mx, my
-end
-
-local function updateBlink(dt, eMag)
-  if not C.BLINK_ENABLE then return 1.0 end
-  st.blinkTimer = st.blinkTimer - dt
-  if st.blinkTimer <= 0 then
-    st.blinkTimer = rRange(C.BLINK_MIN_INTERVAL, C.BLINK_MAX_INTERVAL)
-    if eMag > 2.0 and math.random() < C.BLINK_CHANCE then
-      st.blinkHold = C.BLINK_DURATION
-    end
-  end
-  if st.blinkHold > 0 then
-    st.blinkHold = st.blinkHold - dt
-    return C.BLINK_SCALE
-  end
-  return 1.0
-end
-
-local function updateOvershoot(dt, errorX, errorY, eMag)
-  if not C.OVERSHOOT_SETTLE_ENABLE then return 0, 0 end
-  -- NUEVO: NO overshoot cuando el target está cerca
-  if eMag < C.OVERSHOOT_MIN_ERR then
-    st.prevErrorX = errorX
-    st.prevErrorY = errorY
-    st.prevErrorMag = eMag
-    return 0, 0
-  end
-  if st.overshootTimer > 0 then
-    st.overshootTimer = st.overshootTimer - dt
-    local t = clamp(st.overshootTimer / C.OVERSHOOT_SETTLE_TIME, 0, 1)
-    local curve = bell(t)
-    local amp = C.OVERSHOOT_SETTLE_AMP * math.min(eMag / C.OVERSHOOT_SETTLE_RANGE, 1.0)
-    return st.overshootDirX * amp * curve, st.overshootDirY * amp * curve
-  end
-  if st.prevErrorMag and st.prevErrorMag > 10.0 and eMag < 2.0 then
-    local prevNormX = st.prevErrorX / math.max(st.prevErrorMag, 0.001)
-    local prevNormY = st.prevErrorY / math.max(st.prevErrorMag, 0.001)
-    st.overshootDirX = -prevNormX
-    st.overshootDirY = -prevNormY
-    st.overshootTimer = C.OVERSHOOT_SETTLE_TIME
-  end
-  st.prevErrorX = errorX
-  st.prevErrorY = errorY
-  st.prevErrorMag = eMag
-  return 0, 0
-end
-
-local function updateHandShake(dt, eMag)
-  if not C.HANDSHAKE_ENABLE then return 0, 0 end
-  if eMag > 8.0 then return 0, 0 end
-  st.handShakeT = st.handShakeT + dt
-  local scale = 1 - (eMag / 8.0)
-  scale = scale * scale
-  local amp = C.HANDSHAKE_AMP * scale
-  local hx = math.sin(st.handShakeT * 2 * math.pi * C.HANDSHAKE_FREQ) * amp
-  local hy = math.cos(st.handShakeT * 2 * math.pi * C.HANDSHAKE_FREQ * 1.21) * amp * 0.65
-  return hx, hy
-end
-
-local function updateFatigue(dt, eMag)
-  if not C.FATIGUE_ENABLE then return 0, 0 end
-  st.fatigueT = st.fatigueT + dt
-  if eMag > 15.0 then
-    st.fatigueLevel = math.min(1.0, st.fatigueLevel + dt * C.FATIGUE_RATE)
-  else
-    st.fatigueLevel = math.max(0.0, st.fatigueLevel - dt * C.FATIGUE_DECAY)
-  end
-  if st.fatigueLevel < 0.05 then return 0, 0 end
-  local fAmp = st.fatigueLevel * C.FATIGUE_DRIFT_AMP
-  local fx = fbm1(st.fatigueT * 0.35, 220, 3) * fAmp
-  local fy = fbm1(st.fatigueT * 0.32, 221, 3) * fAmp * 0.7
-  return fx, fy
-end
-
-local function updateAnticipate(dt, errorX, errorY, eMag)
-  if not C.ANTICIPATE_ENABLE then return 0, 0 end
-  local targetAX, targetAY = 0, 0
-  if eMag > 8.0 and eMag < 60.0 then
-    local nx, ny = errorX / eMag, errorY / eMag
-    targetAX = nx * C.ANTICIPATE_GAIN
-    targetAY = ny * C.ANTICIPATE_GAIN
-  end
-  st.anticipateX = expDecay(st.anticipateX, targetAX, C.ANTICIPATE_TAU, dt)
-  st.anticipateY = expDecay(st.anticipateY, targetAY, C.ANTICIPATE_TAU, dt)
-  return st.anticipateX, st.anticipateY
-end
-
 local function updateSmartFlickScreenVel(dt)
   if not st.targetChar or not st.targetChar.Parent then
     st.smlScreenVelInit = false
@@ -1957,9 +1978,9 @@ local function updateSmartFlickScreenVel(dt)
   if not root then return end
   local sp = camera:WorldToViewportPoint(root.Position)
   if sp.Z <= 0 then return end
-  local now = tick()
+  local t = clock()
   if st.smlScreenVelInit and st.smlPrevTargetScreenT > 0 then
-    local dtS = now - st.smlPrevTargetScreenT
+    local dtS = t - st.smlPrevTargetScreenT
     if dtS > 0.001 and dtS < 0.1 then
       local vx = (sp.X - st.smlPrevTargetScreenX) / dtS
       local vy = (sp.Y - st.smlPrevTargetScreenY) / dtS
@@ -1970,22 +1991,21 @@ local function updateSmartFlickScreenVel(dt)
   end
   st.smlPrevTargetScreenX = sp.X
   st.smlPrevTargetScreenY = sp.Y
-  st.smlPrevTargetScreenT = now
+  st.smlPrevTargetScreenT = t
   st.smlScreenVelInit = true
 end
-
 local function anyFlickActive()
   if C.FLICK_LOCK_SHARED then
     if st.flickTimer > 0 then return true end
     if st.smartFlickTimer > 0 then return true end
     if st.smartFlickActive and st.smartFlickHoldTimer > 0 then return true end
+    if st.airFlickTimer > 0 or st.intentTimer > 0 then return true end
   end
   return false
 end
-
 local function updateSmartFlick(dt, cursor, errorX, errorY, eMag)
   if not C.SMART_FLICK_ENABLE then return end
-  if eMag < 14.0 then return end
+  if st.hiddenNow then return end
   if st.smartFlickCooldown > 0 then st.smartFlickCooldown = st.smartFlickCooldown - dt end
   if st.smartFlickTimer > 0 then
     st.smartFlickTimer = st.smartFlickTimer - dt
@@ -2020,15 +2040,13 @@ local function updateSmartFlick(dt, cursor, errorX, errorY, eMag)
   if anyFlickActive() then return end
   if st.userYankTimer > 0 then return end
   if st.userMoveInf > 0.15 then return end
-  if st.userPriority > C.USER_INPUT_FULL_STOP_THRESHOLD then return end
-  if (st.mouseSpeedSmooth or 0) > C.MANUAL_FULL_SPEED * 0.5 then return end
   local conf = st.predConfidence or 1.0
   local tvMag = st.lastTargetVelMag or 0
   if conf < C.SMART_FLICK_MIN_CONF then return end
   if tvMag < C.SMART_FLICK_MIN_TGT_VEL then return end
   if eMag < C.SMART_FLICK_MIN_ERR then return end
   if eMag > C.SMART_FLICK_MAX_ERR then return end
-  if math.random() > C.SMART_FLICK_TRIGGER_CHANCE then return end
+  if rnd() > C.SMART_FLICK_TRIGGER_CHANCE then return end
   if not st.smlScreenVelInit then return end
   if not st.targetChar or not st.targetChar.Parent then return end
   local root = st.targetChar:FindFirstChild("HumanoidRootPart")
@@ -2053,14 +2071,6 @@ local function updateSmartFlick(dt, cursor, errorX, errorY, eMag)
   local endFy = parkY - cursor.Y
   local endMag = vlen(endFx, endFy)
   if startMag < 3 or endMag < 3 then return end
-  if endMag > C.SMART_FLICK_MAX_MAG then
-    local s = C.SMART_FLICK_MAX_MAG / endMag
-    endFx = endFx * s
-    endFy = endFy * s
-    parkX = cursor.X + endFx
-    parkY = cursor.Y + endFy
-    endMag = C.SMART_FLICK_MAX_MAG
-  end
   st.smlStartDirX = startFx / startMag
   st.smlStartDirY = startFy / startMag
   st.smlEndDirX = endFx / endMag
@@ -2073,18 +2083,16 @@ local function updateSmartFlick(dt, cursor, errorX, errorY, eMag)
   st.smartFlickTimer = C.SMART_FLICK_FLICK_TIME
   st.smartFlickActive = true
   st.smartFlickTriggered = true
-  st.smartFlickPhaseSeed = math.random() * 100
+  st.smartFlickPhaseSeed = rnd() * 100
 end
-
 local function updateReturnPulse(dt, errorX, errorY)
   if not C.RETURN_PULSE_ENABLE then st.recentHitTime = nil; return end
   if st.returnCooldown > 0 then st.returnCooldown = st.returnCooldown - dt end
   local eMag = vlen(errorX, errorY)
-  if eMag < 8.0 then st.recentHitTime = nil; return end
-  local now = tick()
-  if eMag < C.RETURN_PULSE_HIT_RANGE then st.recentHitTime = now end
+  local t = clock()
+  if eMag < C.RETURN_PULSE_HIT_RANGE then st.recentHitTime = t end
   local overshoot = false
-  if st.recentHitTime and (now - st.recentHitTime) < C.RETURN_PULSE_HIT_WINDOW then
+  if st.recentHitTime and (t - st.recentHitTime) < C.RETURN_PULSE_HIT_WINDOW then
     if eMag > C.RETURN_PULSE_MIN_ERR then overshoot = true end
   end
   if overshoot and st.returnCooldown <= 0 and st.returnPauseTimer <= 0 and st.returnPulseTimer <= 0 then
@@ -2114,20 +2122,18 @@ local function updateReturnPulse(dt, errorX, errorY)
   end
   if st.returnPulseTimer > 0 then st.returnPulseTimer = st.returnPulseTimer - dt end
 end
-
 local function resolveBaseAim(char, cursor, dt)
   local hum = char:FindFirstChildOfClass("Humanoid")
   local root = char:FindFirstChild("HumanoidRootPart")
   if not root then return nil, false end
-  local airborne = hum and hum.FloorMaterial == Enum.Material.Air
+  local airborne = (hum and hum.FloorMaterial == Enum.Material.Air) or false
   st.targetAirborne = airborne
-  local rawPos = getAimPoint(char, cursor, dt)
+  local rawPos = getAimPoint(char, cursor, dt, true)
   if not rawPos then
     return Vector3.new(root.Position.X, root.Position.Y + C.AIM_ANCHOR_HEIGHT, root.Position.Z), false
   end
   if C.AIM_POINT_MODE == "Head" then
-    st.aimPointPart = findPart(char, "Head")
-    st.aimPointName = "Head"
+    st.aimPointPart = findPart(char, "Head"); st.aimPointName = "Head"
   elseif C.AIM_POINT_MODE == "UpperTorso" then
     st.aimPointPart = findPart(char, "UpperTorso") or findPart(char, "Torso")
     st.aimPointName = st.aimPointPart and st.aimPointPart.Name or "UpperTorso"
@@ -2135,75 +2141,85 @@ local function resolveBaseAim(char, cursor, dt)
     st.aimPointPart = findPart(char, "Torso") or findPart(char, "UpperTorso")
     st.aimPointName = st.aimPointPart and st.aimPointPart.Name or "Torso"
   elseif C.AIM_POINT_MODE == "Dynamic" then
-    st.aimPointPart = root
-    st.aimPointName = "Dynamic"
+    st.aimPointPart = root; st.aimPointName = "Dynamic"
   elseif C.AIM_POINT_MODE == "RootOffset" then
-    st.aimPointPart = root
-    st.aimPointName = "RootOffset"
+    st.aimPointPart = root; st.aimPointName = "RootOffset"
   end
-  local withOffset = rawPos + st.hitboxOffset
+  local rootCF = root.CFrame
+  local localPos = rootCF:PointToObjectSpace(rawPos) + st.hitboxOffset
+  if C.AIM_POINT_MODE == "Dynamic" then
+    local s = getAimState(char)
+    localPos = localPos + Vector3.new(fbm1(s.noiseT * 0.5, 410 + s.seed, 2) * C.AIM_LATERAL_VARY, 0, 0)
+  end
   if C.AIM_SMOOTH_ENABLE then
-    if not st.aimSmoothWorld then
-      st.aimSmoothWorld = withOffset
+    if not st.aimSmoothLocal then
+      st.aimSmoothLocal = localPos
     else
-      local tau = C.AIM_SMOOTH_TAU
-      local a = 1 - math.exp(-dt / math.max(tau, 0.001))
-      st.aimSmoothWorld = st.aimSmoothWorld + (withOffset - st.aimSmoothWorld) * a
+      local a = 1 - math.exp(-dt / math.max(C.AIM_SMOOTH_TAU, 0.001))
+      st.aimSmoothLocal = st.aimSmoothLocal + (localPos - st.aimSmoothLocal) * a
     end
-    return st.aimSmoothWorld, false
+    localPos = st.aimSmoothLocal
   end
-  return withOffset, false
+  return clampToBody(char, rootCF:PointToWorldSpace(localPos)), false
 end
-
 local function computeAimWorld(char, dt, cursor)
   local root = char:FindFirstChild("HumanoidRootPart")
   if not root then return nil end
   local hum = char:FindFirstChildOfClass("Humanoid")
   if not hum then return nil end
-  updateHitboxZone(dt)
-  local basePos, isAir = resolveBaseAim(char, cursor, dt)
+  if C.HITBOX_SUBZONE_ENABLE then updateHitboxZone(dt) end
+  local basePos = resolveBaseAim(char, cursor, dt)
   if not basePos then return nil end
   local baseX, baseY, baseZ = basePos.X, basePos.Y, basePos.Z
   local eMag = 999
   local spTmp = camera:WorldToViewportPoint(Vector3.new(baseX, baseY, baseZ))
   if spTmp.Z > 0 then
-    local dx = spTmp.X - cursor.X
-    local dy = spTmp.Y - cursor.Y
+    local dx = spTmp.X - cursor.X; local dy = spTmp.Y - cursor.Y
     eMag = math.sqrt(dx * dx + dy * dy)
   end
   local bX, bY, bZ = updateBreathing(dt, st.lastTargetVelMag, eMag)
-  baseX = baseX + bX
-  baseY = baseY + bY
-  baseZ = baseZ + bZ
+  baseX = baseX + bX; baseY = baseY + bY; baseZ = baseZ + bZ
   updateAimSpot(dt)
   return Vector3.new(baseX, baseY, baseZ), true
 end
-
 local function computeAimScreen(char, dt, cursor)
   local world = computeAimWorld(char, dt, cursor)
   if not world then return nil end
   local vel = computeBlendedVelocity()
-  updatePredictability(vel, dt)
-  updateVelocityInertia(vel, dt)
+  updatePredictability(vel, dt); updateVelocityInertia(vel, dt)
   local predOffset = computePredictionOffset(vel, dt)
   predOffset = applySurfacePrediction(predOffset)
+  local hm = math.sqrt(predOffset.X * predOffset.X + predOffset.Z * predOffset.Z)
+  local farT = smoothstep(C.PRED_FAR_START, C.PRED_FAR_END, st.targetWorldD or 0)
+  local hcap = math.min(lerp(C.PRED_BODY_CAP, C.PRED_BODY_CAP_FAR, farT), C.PRED_MAX)
+  if hm > hcap then
+    local s = hcap / hm
+    predOffset = Vector3.new(predOffset.X * s, predOffset.Y, predOffset.Z * s)
+  end
+  predOffset = Vector3.new(predOffset.X, clamp(predOffset.Y, -C.AIR_Y_MAX, C.AIR_Y_MAX), predOffset.Z)
   local finalWorld = world + predOffset
   if C.AIM_VIS_CHECK_ENABLE and C.WALLCHECK then
-    local visRaw = canSee(world, char, true)
-    local visFinal = canSee(finalWorld, char, true)
-    local vis = visRaw and visFinal
-    local now = tick()
+    local t = clock()
+    local vis, altPos = Vis.modelVisible(char, world, true)
+    if vis and altPos and altPos ~= world then
+      world = altPos
+      finalWorld = world + predOffset
+      st.aimFallbackPos = altPos
+    else
+      st.aimFallbackPos = nil
+    end
+    if vis and predOffset.Magnitude > 0.05 then
+      if not Vis.point(char, "fin", finalWorld, true) then
+        local half = world + predOffset * 0.5
+        if Vis.point(char, "fin2", half, true) then finalWorld = half else finalWorld = world end
+      end
+    end
     if not vis then
       if st.aimPointVisible then
         st.aimPointVisible = false
-        st.aimPointNotVisibleSince = now
+        st.aimPointNotVisibleSince = t
       end
-      -- NUEVO: cuando el target está fuera de FOV y no visible, NO devolvemos nil.
-      -- Dejamos que siga trackeando la posición aunque esté oculto.
-      -- Solo devolvemos nil si lleva MUCHO tiempo sin verse Y el usuario está jalando
-      if (now - st.aimPointNotVisibleSince) > 2.5 then
-        return nil
-      end
+      if (t - st.aimPointNotVisibleSince) > C.AIM_VIS_GRACE_TIME then return nil end
     else
       st.aimPointVisible = true
       st.aimPointNotVisibleSince = 0
@@ -2211,6 +2227,22 @@ local function computeAimScreen(char, dt, cursor)
   end
   local sp = camera:WorldToViewportPoint(finalWorld)
   if sp.Z <= 0 then return nil end
+  local bsp = camera:WorldToViewportPoint(world)
+  if bsp.Z > 0 then
+    local ox, oy = sp.X - bsp.X, sp.Y - bsp.Y
+    local om = vlen(ox, oy)
+    local pxcap = lerp(C.PRED_SCREEN_MAX_PX, C.PRED_SCREEN_MAX_FAR, smoothstep(C.PRED_FAR_START, C.PRED_FAR_END, st.targetWorldD or 0))
+    if om > pxcap then
+      local s = pxcap / om
+      sp = Vector3.new(bsp.X + ox * s, bsp.Y + oy * s, sp.Z)
+    end
+  end
+  st.aimWorldLast = finalWorld
+  st.lastVisWorld = finalWorld
+  st.lastVisVelX = st.predVelSmoothX or 0
+  st.lastVisVelZ = st.predVelSmoothZ or 0
+  st.hideT = 0
+  st.hiddenNow = false
   local rawX = sp.X + st.spotX
   local rawY = sp.Y + st.spotY
   if st.acquireBlend < 1 then
@@ -2232,11 +2264,10 @@ local function computeAimScreen(char, dt, cursor)
   st.aimScreenInit = true
   return st.aimScreenX, st.aimScreenY, vel
 end
-
 local function updateManualInfluence(dt)
   local rawSpeed = vlen(st.mouseDeltaX, st.mouseDeltaY) / math.max(dt, C.MOUSE_DT_MIN)
   if rawSpeed > C.MANUAL_DEADZONE then
-    st.manualPeakTime = tick()
+    st.manualPeakTime = clock()
     st.manualHoldTimer = C.MANUAL_HOLD_TIME
   else
     st.manualHoldTimer = st.manualHoldTimer - dt
@@ -2245,13 +2276,14 @@ local function updateManualInfluence(dt)
   local demand = 0
   if spd > C.MANUAL_DEADZONE then
     demand = smoothstep(C.MANUAL_DEADZONE, C.MANUAL_FULL_SPEED, spd) * C.MANUAL_MAX_INFLUENCE
+    local al = userAlong()
+    if al then demand = demand * (1 - C.MANUAL_ALONG_RELIEF * smoothstep(0.15, 0.75, al)) end
   end
   if st.manualHoldTimer > 0 and demand < st.manualInf then demand = st.manualInf end
   local tau = (demand > st.manualInf) and C.MANUAL_TAU_IN or C.MANUAL_TAU_OUT
   st.manualInf = expDecay(st.manualInf, demand, tau, dt)
   if st.manualInf < 0.003 then st.manualInf = 0 end
 end
-
 local function updateSoftRelease(dt)
   if not C.SOFT_RELEASE_ENABLE then st.releaseSmooth = 0; return end
   local spd = st.mouseSpeedSmooth or 0
@@ -2260,6 +2292,8 @@ local function updateSoftRelease(dt)
     local t = clamp((spd - C.SOFT_RELEASE_START) / math.max(C.SOFT_RELEASE_FULL - C.SOFT_RELEASE_START, 1), 0, 1)
     t = t * t * (3 - 2 * t)
     target = t * C.SOFT_RELEASE_MAX
+    local al = userAlong()
+    if al then target = target * (1 - 0.9 * smoothstep(0.15, 0.75, al)) end
   end
   if target > st.releaseSmooth then
     st.releaseSmooth = expDecay(st.releaseSmooth, target, C.SOFT_RELEASE_ATTACK, dt)
@@ -2267,7 +2301,6 @@ local function updateSoftRelease(dt)
     st.releaseSmooth = expDecay(st.releaseSmooth, target, C.SOFT_RELEASE_DECAY, dt)
   end
 end
-
 local function computeManualCut()
   local m = st.manualInf
   if m <= C.MANUAL_CUT_START then return 0 end
@@ -2275,57 +2308,72 @@ local function computeManualCut()
   local t = (m - C.MANUAL_CUT_START) / (C.MANUAL_CUT_FULL - C.MANUAL_CUT_START)
   return t * t * (3 - 2 * t)
 end
-
+local function updateIntentAssist(dt, errorX, errorY, eMag, reactRamp)
+  if not C.INTENT_ENABLE then st.intentFactor = 0; return end
+  if st.intentCooldown > 0 then st.intentCooldown = st.intentCooldown - dt end
+  if st.intentTimer > 0 then st.intentTimer = st.intentTimer - dt end
+  local al = userAlong()
+  local spd = st.mouseSpeedSmooth or 0
+  local want = 0
+  if al and spd > C.INTENT_MIN_SPEED and eMag > C.INTENT_MIN_ERR then
+    want = smoothstep(C.INTENT_DOT_MIN, C.INTENT_DOT_FULL, al) * smoothstep(C.INTENT_MIN_SPEED, C.INTENT_MIN_SPEED * 3, spd)
+  end
+  st.intentFactor = expDecay(st.intentFactor, want, want > st.intentFactor and 0.04 or 0.18, dt)
+  if want > 0.6 and st.intentCooldown <= 0 and st.intentTimer <= 0 and reactRamp > 0.4
+     and eMag < C.INTENT_MAX_ERR and not anyFlickActive() then
+    local dirX, dirY = errorX / eMag, errorY / eMag
+    local um = vlen(st.mouseDeltaX, st.mouseDeltaY)
+    if um > 0.1 then
+      dirX = dirX * 0.75 + (st.mouseDeltaX / um) * 0.25
+      dirY = dirY * 0.75 + (st.mouseDeltaY / um) * 0.25
+      local dm = vlen(dirX, dirY)
+      if dm > 0.001 then dirX, dirY = dirX / dm, dirY / dm end
+    end
+    st.intentDirX, st.intentDirY = dirX, dirY
+    st.intentMag = eMag * C.INTENT_FLICK_FRAC
+    st.intentTimer = C.INTENT_FLICK_TIME
+    st.intentCooldown = C.INTENT_COOLDOWN
+    st.intentSeed = rnd() * 100
+  end
+end
 local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   if not st.reactDelayRolled then
     local targetStill = (st.lastTargetVelMag or 0) < 4.0
     if targetStill then
-      st.reactDelayCurrent = C.REACT_STILL_MIN + math.random() * (C.REACT_STILL_MAX - C.REACT_STILL_MIN)
+      st.reactDelayCurrent = C.REACT_STILL_MIN + rnd() * (C.REACT_STILL_MAX - C.REACT_STILL_MIN)
     else
-      st.reactDelayCurrent = C.REACT_DELAY_MIN + math.random() * (C.REACT_DELAY_MAX - C.REACT_DELAY_MIN)
+      st.reactDelayCurrent = C.REACT_DELAY_MIN + rnd() * (C.REACT_DELAY_MAX - C.REACT_DELAY_MIN)
     end
     st.reactDelayRolled = true
   end
   local reactRamp = 1.0
   if C.REACTION_RAMP_ENABLE and st.reactDelayCurrent > 0 then
     local t = clamp(st.lockAge / st.reactDelayCurrent, 0, 1)
-    reactRamp = t * t * (3 - 2 * t)
+    if t < 0.15 then
+      reactRamp = 0
+    else
+      local tt = (t - 0.15) / 0.85
+      reactRamp = tt * tt * (3 - 2 * tt)
+    end
   end
   st.acquireEnvT = st.acquireEnvT + dt
   local acqEnv = 1.0
   if C.ACQUIRE_ENVELOPE_ENABLE and C.ACQUIRE_ENVELOPE_TIME > 0 then
     local t = clamp(st.acquireEnvT / C.ACQUIRE_ENVELOPE_TIME, 0, 1)
-    local curved = 1 - (1 - t) ^ C.ACQUIRE_ENVELOPE_CURVE
+    local curved = t ^ C.ACQUIRE_ENVELOPE_CURVE
     acqEnv = C.ACQUIRE_ENVELOPE_MIN + (1 - C.ACQUIRE_ENVELOPE_MIN) * curved
   end
   local errorX = aimX - cursor.X
   local errorY = aimY - cursor.Y
   local eMag = vlen(errorX, errorY)
-  if USER.AIM_MODE == "Instant" then
-    return errorX * reactRamp * acqEnv, errorY * reactRamp * acqEnv
-  end
+  if USER.AIM_MODE == "Instant" then return errorX * reactRamp * acqEnv, errorY * reactRamp * acqEnv end
   updateManualInfluence(dt)
   updateSoftRelease(dt)
   updateGait(dt)
   updateMicroPause(dt)
-  if C.USER_INPUT_PRIORITY_ENABLE then
-    local userSpeed = st.mouseSpeedSmooth or 0
-    local targetPriority = 0
-    if userSpeed > C.USER_INPUT_PRIORITY_MIN_SPEED then
-      local t = clamp((userSpeed - C.USER_INPUT_PRIORITY_MIN_SPEED) / math.max(C.USER_INPUT_PRIORITY_MAX_SPEED - C.USER_INPUT_PRIORITY_MIN_SPEED, 1), 0, 1)
-      targetPriority = t
-    end
-    local pTau = (targetPriority > st.userPriority) and C.USER_INPUT_PRIORITY_ATTACK or C.USER_INPUT_PRIORITY_RELEASE
-    st.userPriority = expDecay(st.userPriority, targetPriority, pTau, dt)
-    if st.userPriority < 0.003 then st.userPriority = 0 end
-    local override = 1.0
-    if st.userPriority > 0.3 then
-      override = lerp(1.0, C.USER_INPUT_PRIORITY_OVERRIDE, st.userPriority)
-    end
-    errorX = errorX * override
-    errorY = errorY * override
-    eMag = vlen(errorX, errorY)
-  end
+  st.axisT = st.axisT + dt
+  local axisMulX = 1 + fbm1(st.axisT * C.AXIS_VARY_FREQ, 700, 2) * C.AXIS_VARY_AMP
+  local axisMulY = 1 + fbm1(st.axisT * C.AXIS_VARY_FREQ * 1.17, 701, 2) * C.AXIS_VARY_AMP
   local downSpeed = st.mouseDeltaY / math.max(dt, C.MOUSE_DT_MIN)
   local downTarget = smoothstep(0, C.MANUAL_DOWN_THRESH * 2, downSpeed) * C.MANUAL_DOWN_MAX
   local dTau = (downTarget > st.manualDownInf) and C.MANUAL_DOWN_TAU_IN or C.MANUAL_DOWN_TAU_OUT
@@ -2333,15 +2381,26 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   local manualCutRaw = computeManualCut()
   st.cutSmooth = expDecay(st.cutSmooth, manualCutRaw, C.MANUAL_CUT_SMOOTH_TAU, dt)
   local manualCut = st.cutSmooth
-
-  local nearRange = 8.0
-  local nearT = 1 - clamp(eMag / nearRange, 0, 1)
-  nearT = nearT * nearT * (3 - 2 * nearT)
-  local farT = 1 - nearT
-
-  if C.DIR_LOOKAHEAD_ENABLE and st.targetChar then
-    local tvX = st.predVelSmoothX or 0
-    local tvZ = st.predVelSmoothZ or 0
+  if C.RECOIL_DETECT then
+    local sig = st.recoilSignal or 0
+    if math.abs(sig) > C.RECOIL_MIN_SIGNAL then
+      local strength = math.abs(sig) - C.RECOIL_MIN_SIGNAL
+      local off = -sign(sig) * strength * C.RECOIL_GAIN * dt
+      off = clamp(off, -C.RECOIL_MAX_OFFSET * dt, C.RECOIL_MAX_OFFSET * dt)
+      st.recoilOffsetY = st.recoilOffsetY + off
+    end
+    st.recoilOffsetY = expDecay(st.recoilOffsetY, 0, C.RECOIL_DECAY, dt)
+    st.recoilOffsetY = clamp(st.recoilOffsetY, -C.RECOIL_MAX_OFFSET, C.RECOIL_MAX_OFFSET)
+  else
+    st.recoilOffsetY = 0
+  end
+  local targetX = aimX; local targetY = aimY + st.recoilOffsetY
+  errorX = targetX - cursor.X; errorY = targetY - cursor.Y
+  eMag = vlen(errorX, errorY)
+  st.lastErrX, st.lastErrY = errorX, errorY
+  if C.DIR_LOOKAHEAD_ENABLE and st.targetChar and st.aimWorldLast then
+    local tvX = st.hiddenNow and st.lastVisVelX or (st.predVelSmoothX or 0)
+    local tvZ = st.hiddenNow and st.lastVisVelZ or (st.predVelSmoothZ or 0)
     local tvMag = math.sqrt(tvX * tvX + tvZ * tvZ)
     if tvMag > 1.0 then
       local ndx, ndz = tvX / tvMag, tvZ / tvMag
@@ -2351,9 +2410,9 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
           if not st.dirChangePending then
             st.frozenTargetDirX = st.lastTargetDirX
             st.frozenTargetDirZ = st.lastTargetDirZ
-            st.dirChangeTime = tick()
+            st.dirChangeTime = clock()
             st.dirChangePending = true
-            st.frozenDirValidUntil = tick() + C.DIR_REACTION_DELAY
+            st.frozenDirValidUntil = clock() + C.DIR_REACTION_DELAY
           end
         end
       end
@@ -2361,22 +2420,20 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
       st.lastTargetDirZ = ndz
       st.lastTargetDirSet = true
       local useDirX, useDirZ
-      if st.dirChangePending and tick() < st.frozenDirValidUntil then
+      if st.dirChangePending and clock() < st.frozenDirValidUntil then
         useDirX, useDirZ = st.frozenTargetDirX, st.frozenTargetDirZ
       else
         useDirX, useDirZ = ndx, ndz
         if st.dirChangePending then st.dirChangePending = false end
       end
       local lookaheadDist = clamp(C.DIR_LOOKAHEAD_TIME * tvMag, 0, C.DIR_LOOKAHEAD_MAX_ERR)
-      local laGain = C.DIR_LOOKAHEAD_GAIN * farT
-      local lx = useDirX * lookaheadDist * laGain
-      local lz = useDirZ * lookaheadDist * laGain
-      if camera and st.targetWorldD and st.targetWorldD > 0 then
-        local vp = camera.ViewportSize
-        local fov = math.rad(camera.FieldOfView)
-        local studsPerPx = (2 * st.targetWorldD * math.tan(fov * 0.5)) / vp.Y
-        errorX = errorX + lx / math.max(studsPerPx, 0.001)
-        errorY = errorY + lz / math.max(studsPerPx, 0.001)
+      local lx = useDirX * lookaheadDist * C.DIR_LOOKAHEAD_GAIN
+      local lz = useDirZ * lookaheadDist * C.DIR_LOOKAHEAD_GAIN
+      local base = camera:WorldToViewportPoint(st.aimWorldLast)
+      local ahead = camera:WorldToViewportPoint(st.aimWorldLast + Vector3.new(lx, 0, lz))
+      if base.Z > 0 and ahead.Z > 0 then
+        errorX = errorX + (ahead.X - base.X)
+        errorY = errorY + (ahead.Y - base.Y)
         eMag = vlen(errorX, errorY)
       end
     end
@@ -2387,16 +2444,19 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     if eMag > 0.001 then eNormX = errorX / eMag; eNormY = errorY / eMag end
     local perpX, perpY = -eNormY, eNormX
     local curveMul = clamp(eMag / 30.0, 0.2, 1.0)
-    local curveAmt = fbm1(st.humanCurveT * C.HUMAN_CURVE_FREQ, 200, 3) * C.HUMAN_CURVE_AMP * curveMul * farT
+    local curveAmt = fbm1(st.humanCurveT * C.HUMAN_CURVE_FREQ, 200, 3)
+                    * C.HUMAN_CURVE_AMP * curveMul
     errorX = errorX + perpX * curveAmt
     errorY = errorY + perpY * curveAmt
+    local arc = fbm1(st.humanCurveT * C.ARC_FREQ, 210, 2) * C.ARC_AMP * eMag * smoothstep(C.ARC_NEAR, C.ARC_FAR, eMag)
+    errorX = errorX + perpX * arc
+    errorY = errorY + perpY * arc
     if eMag < C.HUMAN_WOBBLE_RANGE then
       st.humanWobbleT = st.humanWobbleT + dt
       local wobbleScale = 1 - (eMag / C.HUMAN_WOBBLE_RANGE)
       wobbleScale = wobbleScale * wobbleScale
-      local wobMult = lerp(0.4, 1.0, farT)
-      local wobX = math.sin(st.humanWobbleT * C.HUMAN_WOBBLE_FREQ * 2 * math.pi) * C.HUMAN_WOBBLE_AMP * wobbleScale * wobMult
-      local wobY = math.cos(st.humanWobbleT * C.HUMAN_WOBBLE_FREQ * 2 * math.pi * 1.13) * C.HUMAN_WOBBLE_AMP * wobbleScale * 0.75 * wobMult
+      local wobX = math.sin(st.humanWobbleT * C.HUMAN_WOBBLE_FREQ * 2 * math.pi) * C.HUMAN_WOBBLE_AMP * wobbleScale
+      local wobY = math.cos(st.humanWobbleT * C.HUMAN_WOBBLE_FREQ * 2 * math.pi * 1.13) * C.HUMAN_WOBBLE_AMP * wobbleScale * 0.75
       errorX = errorX + wobX
       errorY = errorY + wobY
     end
@@ -2411,29 +2471,15 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     end
     eMag = vlen(errorX, errorY)
   end
-
-  if C.ANTICIPATE_ENABLE and farT > 0.3 then
-    local ax, ay = updateAnticipate(dt, errorX, errorY, eMag)
-    errorX = errorX + ax * farT
-    errorY = errorY + ay * farT
-  end
-
-  if farT > 0.4 then
-    updateReturnPulse(dt, errorX, errorY)
-  else
-    st.recentHitTime = nil
-    st.returnPauseTimer = 0
-    st.returnPulseTimer = 0
-  end
+  updateReturnPulse(dt, errorX, errorY)
   updateSmartFlick(dt, cursor, errorX, errorY, eMag)
+  updateIntentAssist(dt, errorX, errorY, eMag, reactRamp)
   if st.smartFlickActive and st.smartFlickHoldTimer > 0 then
     local parkErrX = st.smartFlickParkX - cursor.X
     local parkErrY = st.smartFlickParkY - cursor.Y
     local parkMag = vlen(parkErrX, parkErrY)
     if parkMag > 0.5 then
-      errorX = parkErrX
-      errorY = parkErrY
-      eMag = parkMag
+      errorX = parkErrX; errorY = parkErrY; eMag = parkMag
     end
   end
   local flickX, flickY = 0, 0
@@ -2441,19 +2487,38 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     if st.flickCooldown > 0 then st.flickCooldown = st.flickCooldown - dt end
     st.flickTimer = math.max(0, st.flickTimer - dt)
     if eMag > C.FLICK_ERR_MIN and st.flickCooldown <= 0 and reactRamp > 0.5
-       and not anyFlickActive() and math.random() < C.FLICK_TRIGGER_CHANCE
-       and st.userYankTimer <= 0 and st.userMoveInf < 0.20
-       and nearT < 0.4 then
-      if st.userPriority < C.USER_INPUT_FULL_STOP_THRESHOLD then
-        local t = clamp((eMag - C.FLICK_ERR_MIN) / math.max(C.FLICK_ERR_FAR - C.FLICK_ERR_MIN, 1), 0, 1)
-        t = t * t * (3 - 2 * t)
-        local frac = C.FLICK_GAIN * (0.5 + 0.5 * t)
-        st.flickDirX = errorX / eMag
-        st.flickDirY = errorY / eMag
-        st.flickMag = math.min(eMag * frac, C.FLICK_MAX_MAG)
-        st.flickTimer = C.FLICK_RAMP
-        st.flickCooldown = C.FLICK_COOLDOWN
-        st.flickPhaseSeed = math.random() * 100
+       and not anyFlickActive() and rnd() < C.FLICK_TRIGGER_CHANCE
+       and st.userYankTimer <= 0 and st.userMoveInf < 0.20 then
+      local t = clamp((eMag - C.FLICK_ERR_MIN) / math.max(C.FLICK_ERR_FAR - C.FLICK_ERR_MIN, 1), 0, 1)
+      t = t * t * (3 - 2 * t)
+      local frac = C.FLICK_GAIN * (0.5 + 0.5 * t)
+      st.flickDirX = errorX / eMag
+      st.flickDirY = errorY / eMag
+      st.flickMag = eMag * frac
+      st.flickTimer = C.FLICK_RAMP
+      st.flickCooldown = C.FLICK_COOLDOWN
+      st.flickPhaseSeed = rnd() * 100
+    end
+  end
+  if C.AIR_FLICK_ENABLE then
+    if st.airFlickTimer > 0 then st.airFlickTimer = st.airFlickTimer - dt end
+    if st.jumpJustStarted then
+      st.jumpJustStarted = false
+      if st.aimWorldLast and reactRamp > 0.5 and st.userMoveInf < 0.3 and st.airFlickTimer <= 0 then
+        local v0 = st.jumpV0 or 0
+        local apexH = clamp(v0 * v0 / (2 * workspace.Gravity), 0, C.AIR_FLICK_MAX_H) * C.AIR_FLICK_FRAC_H
+        local p0 = camera:WorldToViewportPoint(st.aimWorldLast)
+        local p1 = camera:WorldToViewportPoint(st.aimWorldLast + Vector3.new(0, apexH, 0))
+        if p0.Z > 0 and p1.Z > 0 then
+          local adx, ady = p1.X - p0.X, p1.Y - p0.Y
+          local am = vlen(adx, ady)
+          if am > 2 then
+            st.airFlickDirX, st.airFlickDirY = adx / am, ady / am
+            st.airFlickMag = am * C.AIR_FLICK_GAIN
+            st.airFlickTimer = C.AIR_FLICK_TIME
+            st.airFlickSeed = rnd() * 100
+          end
+        end
       end
     end
   end
@@ -2462,7 +2527,7 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     st.pulseTimerNext = st.pulseTimerNext - dt
     if st.pulseTimerNext <= 0 then
       local spd = st.mouseSpeedSmooth or 0
-      if eMag > C.PULSE_MIN and eMag < C.PULSE_MAX and spd < 60 and nearT < 0.4 then
+      if eMag > C.PULSE_MIN and eMag < C.PULSE_MAX and spd < 60 then
         st.pulseDirX = errorX / eMag
         st.pulseDirY = errorY / eMag
         if C.PULSE_DIR_WOBBLE > 0 then
@@ -2528,18 +2593,11 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     proximityBoost = 1 + t * C.PROXIMITY_BOOST_AMT
   end
   local totalBoost = liveOmegaBoost * speedMod * gaitMul * pauseMul * targetSpeedBoost * proximityBoost
-
-  if C.ARRIVAL_DAMP_ENABLE and eMag < C.ARRIVAL_DAMP_RANGE then
-    local arrT = 1 - (eMag / C.ARRIVAL_DAMP_RANGE)
-    arrT = arrT * arrT * (3 - 2 * arrT)
-    totalBoost = totalBoost * (1 - arrT * C.ARRIVAL_DAMP_STR)
-  end
-
   totalBoost = math.min(totalBoost, C.TOTAL_BOOST_CAP)
   local baseOmega = (1 / C.SPRING_TAU) * totalBoost
   st.springOmega = expDecay(st.springOmega, baseOmega, C.SPRING_OMEGA_SMOOTH, dt)
   if st.springOmega < 0.01 then st.springOmega = 0.01 end
-  local om = st.springOmega
+  local om = st.springOmega * axisMulX
   local k = om * om
   if C.CLOSE_SNAP_ENABLE and eMag < C.CLOSE_SNAP_RANGE and eMag > 0.1 then
     local tClose = 1 - (eMag / C.CLOSE_SNAP_RANGE)
@@ -2563,15 +2621,7 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   zetaBase = zetaBase + zetaMod
   local zetaT = clamp(1 - eMag / C.CLOSE_ZETA_RANGE, 0, 1)
   zetaT = zetaT * zetaT * (3 - 2 * zetaT)
-  local speedZetaBoost = 0
-  if C.TARGET_SPEED_ADAPT_ENABLE then
-    local tvZ = st.lastTargetVelMag or 0
-    local tz = clamp((tvZ - C.TARGET_SPEED_BOOST_MIN) / math.max(C.TARGET_SPEED_BOOST_MAX - C.TARGET_SPEED_BOOST_MIN, 1), 0, 1)
-    tz = tz * tz * (3 - 2 * tz)
-    speedZetaBoost = tz * 0.18
-  end
-  local settleZetaBoost = nearT * 0.15
-  local zetaTarget = zetaBase + C.CLOSE_ZETA_BOOST * zetaT + speedZetaBoost + settleZetaBoost
+  local zetaTarget = zetaBase + C.CLOSE_ZETA_BOOST * zetaT
   st.zetaSmooth = expDecay(st.zetaSmooth, zetaTarget, C.ZETA_SMOOTH_TAU, dt)
   local c = 2 * om * st.zetaSmooth
   local vertOmegaMult = errorY < 0 and C.VERT_UP_OMEGA_MULT or C.VERT_DOWN_OMEGA_MULT
@@ -2588,8 +2638,7 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
       vertEaseMult = vertEaseMult + (C.VERT_EASE_MID_MULT - 1) * midCurve
     end
   end
-  local settleVertMul = lerp(1.0, 0.85, nearT)
-  local omY = om * vertOmegaMult * vertEaseMult * settleVertMul
+  local omY = om * vertOmegaMult * vertEaseMult * (axisMulY / axisMulX)
   local kY = omY * omY
   local cY = 2 * omY * st.zetaSmooth * vertZetaMult
   local denomX = 1 + c * dt + k * dt * dt
@@ -2623,27 +2672,20 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     st.springVsY = st.springVsY * vd
   end
   if not st.springVsInit then
-    st.springVsX = st.springVX
-    st.springVsY = st.springVY
-    st.springVsInit = true
+    st.springVsX = st.springVX; st.springVsY = st.springVY; st.springVsInit = true
   end
-  local dVX = st.springVX - st.springVsX
-  local dVY = st.springVY - st.springVsY
-  st.springVsX = st.springVsX + dVX
-  st.springVsY = st.springVsY + dVY
   local emaA = 1 - math.exp(-dt / C.SPRING_VEL_SMOOTH_TAU)
   st.springVsX = st.springVsX + (st.springVX - st.springVsX) * emaA
   st.springVsY = st.springVsY + (st.springVY - st.springVsY) * emaA
-
   if C.FLICK_ENABLE and st.flickTimer > 0 then
     local ft = st.flickTimer / C.FLICK_RAMP
     local progress = 1 - ft
-    local curve = flickCurve(progress)
+    local curve = bell(progress)
     local wobbleAngle = math.sin(progress * math.rad(360) * 1.3 + st.flickPhaseSeed) * C.FLICK_WOBBLE_AMP
     local rx, ry = rotate2D(st.flickDirX, st.flickDirY, wobbleAngle)
     local flickSpeed = st.flickMag * C.FLICK_SPEED_MULT
-    flickX = rx * flickSpeed * curve
-    flickY = ry * flickSpeed * curve
+    flickX = rx * flickSpeed * curve * axisMulX
+    flickY = ry * flickSpeed * curve * axisMulY
   end
   if C.PULSE_ENABLE and st.pulseTimer > 0 then
     local ramp = st.pulseRampCurrent
@@ -2670,7 +2712,7 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   if st.smartFlickTimer > 0 then
     local sft = st.smartFlickTimer / C.SMART_FLICK_FLICK_TIME
     local sProgress = 1 - sft
-    local sCurve = flickCurve(sProgress)
+    local sCurve = bell(sProgress)
     local curveMix = easeInOutCos(sProgress) * C.FLICK_CURVE_AMOUNT
     local curveDx = lerp(st.smlStartDirX, st.smlEndDirX, curveMix)
     local curveDy = lerp(st.smlStartDirY, st.smlEndDirY, curveMix)
@@ -2719,73 +2761,20 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     local aModY = 1 + n1(st.idleMicroT * C.IDLE_MICRO_AMP_MOD_SPEED, 113) * C.IDLE_MICRO_AMP_MOD_AMP
     local mX = fbm1(st.idleMicroT * C.IDLE_MICRO_FREQ_BASE * fModX, 114, 3) * C.IDLE_MICRO_AMP * C.IDLE_MICRO_X_SCALE * rangeT * aModX
     local mY = fbm1(st.idleMicroT * C.IDLE_MICRO_FREQ_BASE * fModY, 115, 3) * C.IDLE_MICRO_AMP * rangeT * aModY
-    fx = fx + mX * farT
-    fy = fy + mY * farT
+    fx = fx + mX; fy = fy + mY
   end
   local tvMag = st.lastTargetVelMag or 0
-  local microScale
-  if tvMag < 0.6 then
-    microScale = 0.0
-  else
-    local t = clamp((tvMag - 0.6) / math.max(C.STILL_VEL_THRESH - 0.6, 0.001), 0, 1)
-    microScale = lerp(0.03, 1.0, t)
-  end
-
-  if C.MICRO_ADJUST_ENABLE and nearT > 0.15 then
-    local madjT = nearT
-    local gx = C.MICRO_ADJUST_GAIN_X * errorX * madjT * dt * 60
-    local gy = C.MICRO_ADJUST_GAIN_Y * errorY * madjT * dt * 60
-    st.smoothErrorX = expDecay(st.smoothErrorX, errorX, 0.10, dt)
-    st.smoothErrorY = expDecay(st.smoothErrorY, errorY, 0.10, dt)
-    fx = fx + gx * 0.03
-    fy = fy + gy * 0.03
-  end
-
-  local mcX, mcY = updateMicroCorrect(dt, eMag)
-  fx = fx + mcX * microScale
-  fy = fy + mcY * microScale
-
-  local hX, hY = updateHandShake(dt, eMag)
-  fx = fx + hX * microScale
-  fy = fy + hY * microScale
-
-  local fTX, fTY = updateFatigue(dt, eMag)
-  fx = fx + fTX * microScale * farT
-  fy = fy + fTY * microScale * farT
-
-  -- Overshoot solo si NO estamos cerca (eMag > OVERSHOOT_MIN_ERR)
-  if eMag > C.OVERSHOOT_MIN_ERR then
-    local oX, oY = updateOvershoot(dt, errorX, errorY, eMag)
-    fx = fx + oX * farT
-    fy = fy + oY * farT
-  else
-    st.prevErrorX = errorX
-    st.prevErrorY = errorY
-    st.prevErrorMag = eMag
-  end
-
-  local blinkScale = updateBlink(dt, eMag)
-  if blinkScale < 1.0 then
-    fx = fx * blinkScale
-    fy = fy * blinkScale
-  end
-
-  local oscFarMul = lerp(0.22, 1.0, farT)
+  local microScale = clamp(tvMag / C.STILL_VEL_THRESH, C.STILL_MICRO_SCALE, 1.0)
   local driftX, driftY = updateAimDrift(dt, eMag)
-  fx = fx + driftX * microScale * oscFarMul
-  fy = fy + driftY * microScale * oscFarMul
+  fx = fx + driftX * microScale; fy = fy + driftY * microScale
   local vMicro = updateVerticalMicro(dt, eMag, errorY)
-  fy = fy + vMicro * microScale * oscFarMul
+  fy = fy + vMicro * microScale
   local sX, sY = updateSaccades(dt, eMag)
-  fx = fx + sX * microScale * oscFarMul
-  fy = fy + sY * microScale * oscFarMul
+  fx = fx + sX * microScale; fy = fy + sY * microScale
   local tX, tY = updateTremor(dt, eMag)
-  fx = fx + tX * microScale * oscFarMul
-  fy = fy + tY * microScale * oscFarMul
+  fx = fx + tX * microScale; fy = fy + tY * microScale
   local dtx, dty = updateDoubleTap(dt, eMag)
-  fx = fx + dtx * microScale * oscFarMul
-  fy = fy + dty * microScale * oscFarMul
-
+  fx = fx + dtx; fy = fy + dty
   local nv = st.noiseVar
   st.noiseT = st.noiseT + dt
   local noiseX = n1(st.noiseT * C.NOISE_SPEED_X * 10, 5) * C.NOISE_AMP_X * nv
@@ -2793,16 +2782,22 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
   local jitterX = n1(st.noiseT * C.JITTER_FREQ, 40) * C.JITTER_AMP_X * nv
   local jitterY = n1(st.noiseT * C.JITTER_FREQ, 41) * C.JITTER_AMP_Y * nv
   local jScale = clamp(eMag / 12, 0.15, 1) * microScale
-  jitterX = jitterX * jScale
-  jitterY = jitterY * jScale
-  fx = fx + noiseX + jitterX
-  fy = fy + noiseY + jitterY
+  jitterX = jitterX * jScale; jitterY = jitterY * jScale
+  fx = fx + noiseX + jitterX; fy = fy + noiseY + jitterY
   if C.DEADZONE_ENABLE and eMag < C.DEADZONE_RADIUS then
     local t = eMag / math.max(C.DEADZONE_RADIUS, 0.001)
     local scale = t * t * (3 - 2 * t)
     scale = lerp(C.DEADZONE_MIN_SCALE, 1.0, scale)
     fx = fx * scale
     fy = fy * scale
+  end
+  do
+    local u = clamp(eMag / math.max(C.CLOSE_SOFT_RADIUS, 0.001), 0, 1)
+    u = u * u * (3 - 2 * u)
+    u = u ^ C.CLOSE_SOFT_POWER
+    local cs = lerp(C.CLOSE_SOFT_MIN, 1.0, u)
+    fx = fx * cs
+    fy = fy * cs
   end
   if st.userMoveInf > 0.001 then
     local scale = lerp(1.0, C.USER_MOVE_SCALE, st.userMoveInf)
@@ -2815,15 +2810,23 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     fx = fx * yankScale
     fy = fy * yankScale
   end
-  if C.SRC_ENABLE and st.gameEffectActive then
-    local gameScale = clamp(1 - st.gameMag * 0.5, 0.3, 1.0)
-    fx = fx * gameScale
-    fy = fy * gameScale
+  if st.intentTimer > 0 then
+    local prog = 1 - st.intentTimer / C.INTENT_FLICK_TIME
+    local curve = bell(prog)
+    local wob = math.sin(prog * math.rad(360) * 1.1 + st.intentSeed) * 0.08
+    local rx, ry = rotate2D(st.intentDirX, st.intentDirY, wob)
+    local isp = st.intentMag * C.INTENT_FLICK_SPEED
+    fx = fx + rx * isp * curve * axisMulX * dt
+    fy = fy + ry * isp * curve * axisMulY * dt
   end
-  if C.USER_INPUT_PRIORITY_ENABLE and st.userPriority > 0.01 then
-    local priorityScale = lerp(1.0, C.USER_INPUT_PRIORITY_OVERRIDE, st.userPriority)
-    fx = fx * priorityScale
-    fy = fy * priorityScale
+  if st.airFlickTimer > 0 then
+    local prog = 1 - st.airFlickTimer / C.AIR_FLICK_TIME
+    local tri = prog < 0.35 and (prog / 0.35) or ((1 - prog) / 0.65)
+    local wob = math.sin(prog * math.rad(360) + st.airFlickSeed) * 0.06
+    local rx, ry = rotate2D(st.airFlickDirX, st.airFlickDirY, wob)
+    local asp = st.airFlickMag * C.AIR_FLICK_SPEED
+    fx = fx + rx * asp * tri * dt
+    fy = fy + ry * asp * tri * dt
   end
   local fMag = vlen(fx, fy)
   if fMag > C.SPEED_SOFT_KNEE then
@@ -2831,45 +2834,66 @@ local function solveMovement(cursor, aimX, aimY, dt, targetVel)
     local range = math.max(C.SPEED_SOFT_CAP - C.SPEED_SOFT_KNEE, 1)
     local t = 1 - math.exp(-over / range)
     local reduction = 1 - t * C.SPEED_SOFT_STR
-    fx = fx * reduction
-    fy = fy * reduction
-    fMag = vlen(fx, fy)
+    fx = fx * reduction; fy = fy * reduction; fMag = vlen(fx, fy)
   end
   if fMag > C.SPEED_HARD_CAP then
-    local s = C.SPEED_HARD_CAP / fMag
-    fx = fx * s
-    fy = fy * s
+    local s = C.SPEED_HARD_CAP / fMag; fx = fx * s; fy = fy * s
   end
   if C.VEL_ERROR_CAP_ENABLE and eMag > 0.001 then
     local capFactor = C.VEL_ERROR_CAP
     if eMag < C.ERRCAP_CLOSE_RANGE then capFactor = C.VEL_ERROR_CAP_CLOSE end
     local cap = eMag * capFactor + C.ERRCAP_MIN
-    local capX = cap
-    local capY = cap * C.VERT_VELCAP_MULT + 0.3
-    local fMag2X = math.abs(fx)
-    local fMag2Y = math.abs(fy)
+    local capX = cap; local capY = cap * C.VERT_VELCAP_MULT + 0.3
+    local fMag2X = math.abs(fx); local fMag2Y = math.abs(fy)
     if fMag2X > capX then fx = fx * (capX / fMag2X) end
     if fMag2Y > capY then fy = fy * (capY / fMag2Y) end
   end
   if st.releaseSmooth > 0.001 then
     local mul = 1 - st.releaseSmooth
-    fx = fx * mul
-    fy = fy * mul
+    fx = fx * mul; fy = fy * mul
   end
-  return fx, fy
+  local fovFade = 1 - smoothstep(C.FOV * C.FOV_FADE_START, C.FOV * C.FOV_FADE_END, eMag)
+  local lf = smoothstep(0, 1, clamp(st.lostFade, 0, 1))
+  local rb = 1 + C.REACH_BOOST_MAX * smoothstep(C.REACH_START, C.REACH_FULL, eMag) * (1 - st.userMoveInf)
+  local ib = 1 + C.INTENT_BOOST * st.intentFactor
+  fx = fx * C.ASSIST_STRENGTH * fovFade * lf * rb * ib
+  fy = fy * C.ASSIST_STRENGTH * fovFade * lf * rb * ib
+  if C.FF_ENABLE and st.aimWorldLast and st.tpIgnoreTimer <= 0 and st.tpActive < 0.3 then
+    local fvx = st.hiddenNow and st.lastVisVelX or st.predVelSmoothX
+    local fvz = st.hiddenNow and st.lastVisVelZ or st.predVelSmoothZ
+    local p0 = camera:WorldToViewportPoint(st.aimWorldLast)
+    local p1 = camera:WorldToViewportPoint(st.aimWorldLast + Vector3.new(fvx, 0, fvz) * 0.05)
+    if p0.Z > 0 and p1.Z > 0 then
+      local ffs = (1 - st.userMoveInf) * (st.predConfidence or 1) * reactRamp * acqEnv * fovFade * lf * (1 - manualCut * C.MANUAL_CUT_MAX)
+      local ffx = clamp((p1.X - p0.X) / 0.05 * dt * C.FF_GAIN * ffs, -C.FF_MAX_PX, C.FF_MAX_PX)
+      local ffy = clamp((p1.Y - p0.Y) / 0.05 * dt * C.FF_GAIN * ffs, -C.FF_MAX_PX, C.FF_MAX_PX)
+      fx = fx + ffx
+      fy = fy + ffy
+    end
+  end
+  local oa = 1 - math.exp(-dt / math.max(C.OUT_SMOOTH_TAU, 0.001))
+  local tx = st.outX + (fx - st.outX) * oa
+  local ty = st.outY + (fy - st.outY) * oa
+  local maxD = C.OUT_MAX_ACCEL * dt * dt
+  local ddx, ddy = tx - st.outX, ty - st.outY
+  local dm = vlen(ddx, ddy)
+  if dm > maxD and dm > 0 then
+    local s = maxD / dm
+    tx = st.outX + ddx * s
+    ty = st.outY + ddy * s
+  end
+  st.outX, st.outY = tx, ty
+  return tx, ty
 end
-
 local function handleLostTarget(dt)
   st.lostTimer = st.lostTimer + dt
   local decay = math.exp(-dt / C.LOST_DECAY_TAU)
-  st.springVX = st.springVX * decay
-  st.springVY = st.springVY * decay
+  st.springVX = st.springVX * decay; st.springVY = st.springVY * decay
   local extraDamp = math.exp(-dt * C.LOST_SPRING_DAMP)
-  st.springVX = st.springVX * extraDamp
-  st.springVY = st.springVY * extraDamp
+  st.springVX = st.springVX * extraDamp; st.springVY = st.springVY * extraDamp
   st.springVsX = st.springVsX * decay * extraDamp
   st.springVsY = st.springVsY * decay * extraDamp
-  st.recoilOffsetY = 0
+  st.recoilOffsetY = expDecay(st.recoilOffsetY, 0, C.RECOIL_DECAY, dt)
   st.tpActive = expDecay(st.tpActive, 0, C.TP_TAU, dt)
   if st.lostCoastTimer <= 0 and st.lostTimer < 0.02 then
     st.lostCoastTimer = C.LOST_COAST_TIME
@@ -2886,34 +2910,24 @@ local function handleLostTarget(dt)
   local relMag = math.sqrt(fx * fx + fy * fy)
   if relMag > C.RELEASE_MAX_PIXELS then
     local s = C.RELEASE_MAX_PIXELS / relMag
-    fx = fx * s
-    fy = fy * s
+    fx = fx * s; fy = fy * s
   end
   if st.lostTimer > C.LOST_CLEANUP_TIME then
-    st.springVX = 0; st.springVY = 0
-    st.springVsX = 0; st.springVsY = 0
+    st.springVX = 0; st.springVY = 0; st.springVsX = 0; st.springVsY = 0
     st.recoilOffsetY = 0
-    st.hist = {}
-    st.tpActive = 0
-    st.predVelInit = false
-    st.predBlend = 1.0
+    st.hist = {}; st.tpActive = 0; st.predVelInit = false; st.predBlend = 1.0
     st.predConfidence = 1.0
     st.predVelSmoothX = 0; st.predVelSmoothZ = 0
     st.predVelYSmooth = 0; st.predYSmooth = 0
     st.lastHistPos = nil; st.lastHistTime = 0; st.tpIgnoreTimer = 0
     st.aimPointPart = nil
-    st.springVsInit = false
-    st.saccadeX = 0; st.saccadeY = 0
-    st.zetaSmooth = C.SPRING_ZETA
-    st.predStableTimer = 0
+    st.springVsInit = false; st.saccadeX = 0; st.saccadeY = 0
+    st.zetaSmooth = C.SPRING_ZETA; st.predStableTimer = 0
     st.prevPredVelX = 0; st.prevPredVelZ = 0; st.predVarSmooth = 0
-    st.hitboxOffset = Vector3.zero
-    st.hitboxOffsetTarget = Vector3.zero
-    st.hitboxOffsetTimer = 0
-    st.jumpActive = false
-    st.jumpApexDetected = false
-    st.aimSmoothWorld = nil
-    st.aimPointName = nil
+    st.hitboxOffset = Vector3.zero; st.hitboxOffsetTarget = Vector3.zero; st.hitboxOffsetTimer = 0
+    st.jumpActive = false; st.jumpApexDetected = false
+    st.aimSmoothWorld = nil; st.aimPointName = nil
+    st.aimSmoothLocal = nil; st.aimFallbackPos = nil; st.aimWorldLast = nil
     st.acquireEnvT = 0
     st.doubleTapX = 0; st.doubleTapY = 0
     st.pulseRampCurrent = 0
@@ -2926,21 +2940,334 @@ local function handleLostTarget(dt)
     st.aimPointNotVisibleSince = 0
     st.aimDynamicY = nil
     st.lostCoastTimer = 0
-    st.userPriority = 0
-    st.prevErrorMag = nil
-    st.overshootTimer = 0
-    st.anticipateX = 0; st.anticipateY = 0
-    st.smoothErrorX = 0; st.smoothErrorY = 0
   end
-  if math.abs(fx) > 0.001 or math.abs(fy) > 0.001 then
-    sendMouseRelative(fx, fy)
-  end
+  if math.abs(fx) > 0.001 or math.abs(fy) > 0.001 then sendMouseRelative(fx, fy) end
 end
-
+local function releaseAll(dt)
+  st.outX, st.outY = 0, 0
+  st.manualInf = 0; st.manualDownInf = 0
+  st.manualHoldTimer = 0
+  st.cutSmooth = 0
+  st.releaseSmooth = 0
+  st.springVX = st.springVX * 0.6; st.springVY = st.springVY * 0.6
+  st.springVsX = st.springVsX * 0.6; st.springVsY = st.springVsY * 0.6
+  st.springVsInit = false
+  st.predVelInit = false; st.predBlend = 1.0
+  st.predConfidence = 1.0
+  st.aimSmoothWorld = nil
+  st.aimSmoothLocal = nil
+  st.aimFallbackPos = nil
+  st.acquireEnvT = 0
+  st.acquireBlend = 1
+  st.dirChangePending = false
+  st.flickTimer = 0
+  st.pulseTimer = 0
+  st.reactDelayRolled = false
+  st.tpActive = expDecay(st.tpActive, 0, C.TP_TAU, dt)
+  st.microPauseHold = 0
+  st.microPauseScale = 1.0
+  st.returnPauseTimer = 0
+  st.returnPulseTimer = 0
+  st.recentHitTime = nil
+  st.yankDetected = false
+  st.lastTargetScreenInit = false
+  st.smartFlickActive = false
+  st.smartFlickTimer = 0
+  st.smartFlickHoldTimer = 0
+  st.smlScreenVelInit = false
+  st.userYankTimer = 0
+  st.aimPointVisible = true
+  st.aimPointNotVisibleSince = 0
+  st.aimDynamicY = nil
+  st.lostCoastTimer = 0
+end
+local EDIT_VARS = {
+  {label="SPRING_TAU",        step=0.005,min=0.015,max=0.20,  fmt="%.3f", get=function() return C.SPRING_TAU end, set=function(v) C.SPRING_TAU=v end},
+  {label="SPRING_GAIN",       step=0.05, min=0.1,  max=2.0,   fmt="%.2f", get=function() return C.SPRING_OUTPUT_GAIN end, set=function(v) C.SPRING_OUTPUT_GAIN=v end},
+  {label="DEADZONE_RADIUS",   step=0.5,  min=0,    max=30,    fmt="%.1f", get=function() return C.DEADZONE_RADIUS end, set=function(v) C.DEADZONE_RADIUS=v end},
+  {label="DEADZONE_MIN",      step=0.02, min=0,    max=1.0,   fmt="%.2f", get=function() return C.DEADZONE_MIN_SCALE end, set=function(v) C.DEADZONE_MIN_SCALE=v end},
+  {label="ASSIST_STRENGTH",   step=0.05, min=0.1,  max=1.5,   fmt="%.2f", get=function() return C.ASSIST_STRENGTH end, set=function(v) C.ASSIST_STRENGTH=v end},
+  {label="OUT_SMOOTH_TAU",    step=0.005,min=0.005,max=0.15,  fmt="%.3f", get=function() return C.OUT_SMOOTH_TAU end, set=function(v) C.OUT_SMOOTH_TAU=v end},
+  {label="CLOSE_SOFT_RADIUS", step=2,    min=0,    max=80,    fmt="%.0f", get=function() return C.CLOSE_SOFT_RADIUS end, set=function(v) C.CLOSE_SOFT_RADIUS=v end},
+  {label="CLOSE_SOFT_MIN",    step=0.02, min=0,    max=1.0,   fmt="%.2f", get=function() return C.CLOSE_SOFT_MIN end, set=function(v) C.CLOSE_SOFT_MIN=v end},
+  {label="SWITCH_STEER_SPD",  step=10,   min=40,   max=600,   fmt="%.0f", get=function() return C.SWITCH_STEER_SPEED end, set=function(v) C.SWITCH_STEER_SPEED=v end},
+  {label="REACH_BOOST_MAX",   step=0.05, min=0,    max=1.0,   fmt="%.2f", get=function() return C.REACH_BOOST_MAX end, set=function(v) C.REACH_BOOST_MAX=v end},
+  {label="FF_GAIN",           step=0.05, min=0,    max=1.2,   fmt="%.2f", get=function() return C.FF_GAIN end, set=function(v) C.FF_GAIN=v end},
+  {label="HIDE_FADE_TAU",     step=0.05, min=0.05, max=1.5,   fmt="%.2f", get=function() return C.HIDE_FADE_TAU end, set=function(v) C.HIDE_FADE_TAU=v end},
+  {label="PRED_FAR_MULT",     step=0.1,  min=1.0,  max=3.5,   fmt="%.1f", get=function() return C.PRED_FAR_MULT end, set=function(v) C.PRED_FAR_MULT=v end},
+  {label="INTENT_FLICK_FRAC", step=0.05, min=0,    max=1.0,   fmt="%.2f", get=function() return C.INTENT_FLICK_FRAC end, set=function(v) C.INTENT_FLICK_FRAC=v end},
+  {label="AIR_FLICK_GAIN",    step=0.1,  min=0,    max=2.0,   fmt="%.1f", get=function() return C.AIR_FLICK_GAIN end, set=function(v) C.AIR_FLICK_GAIN=v end},
+  {label="AXIS_VARY_AMP",     step=0.02, min=0,    max=0.6,   fmt="%.2f", get=function() return C.AXIS_VARY_AMP end, set=function(v) C.AXIS_VARY_AMP=v end},
+  {label="ARC_AMP",           step=0.02, min=0,    max=0.5,   fmt="%.2f", get=function() return C.ARC_AMP end, set=function(v) C.ARC_AMP=v end},
+  {label="AIM_CENTER_T",      step=0.02, min=0.05, max=0.8,   fmt="%.2f", get=function() return C.AIM_CENTER_T end, set=function(v) C.AIM_CENTER_T=v end},
+  {label="AIM_BAND_HALF",     step=0.01, min=0,    max=0.4,   fmt="%.2f", get=function() return C.AIM_BAND_HALF end, set=function(v) C.AIM_BAND_HALF=v end},
+  {label="AIM_VARY_AMP",      step=0.01, min=0,    max=0.3,   fmt="%.2f", get=function() return C.AIM_VARY_AMP end, set=function(v) C.AIM_VARY_AMP=v end},
+  {label="AIM_FOLLOW_CURSOR", step=0.05, min=0,    max=1.0,   fmt="%.2f", get=function() return C.AIM_FOLLOW_CURSOR end, set=function(v) C.AIM_FOLLOW_CURSOR=v end},
+  {label="AIM_PROX_R_MULT",   step=0.05, min=0.5,  max=4.0,   fmt="%.2f", get=function() return C.AIM_PROX_RADIUS_MULT end, set=function(v) C.AIM_PROX_RADIUS_MULT=v end},
+  {label="AIM_HEAD_Y",        step=0.05, min=-1.0, max=2.0,   fmt="%.2f", get=function() return C.AIM_HEAD_OFFSET_Y end, set=function(v) C.AIM_HEAD_OFFSET_Y=v end},
+  {label="AIM_FOOT_Y",        step=0.05, min=-5.0, max=0.5,   fmt="%.2f", get=function() return C.AIM_FOOT_OFFSET_Y end, set=function(v) C.AIM_FOOT_OFFSET_Y=v end},
+  {label="LOST_FADE_TAU",     step=0.01, min=0.05, max=1.0,   fmt="%.2f", get=function() return C.TAU_LOST end, set=function(v) C.TAU_LOST=v end},
+  {label="LOST_DAMP",         step=0.05, min=0.1,  max=5.0,   fmt="%.2f", get=function() return C.LOST_SPRING_DAMP end, set=function(v) C.LOST_SPRING_DAMP=v end},
+  {label="LOST_DECAY_TAU",    step=0.01, min=0.02, max=0.5,   fmt="%.2f", get=function() return C.LOST_DECAY_TAU end, set=function(v) C.LOST_DECAY_TAU=v end},
+  {label="RELEASE_MAX_PX",    step=1,    min=5,    max=80,    fmt="%.0f", get=function() return C.RELEASE_MAX_PIXELS end, set=function(v) C.RELEASE_MAX_PIXELS=v end},
+  {label="USER_MOVE_VEL",     step=25,   min=100,  max=1500,  fmt="%.0f", get=function() return C.USER_MOVE_VEL_THRESH end, set=function(v) C.USER_MOVE_VEL_THRESH=v end},
+  {label="USER_YANK_VEL",     step=50,   min=500,  max=2500,  fmt="%.0f", get=function() return C.USER_YANK_VEL_THRESH end, set=function(v) C.USER_YANK_VEL_THRESH=v end},
+  {label="TARGET_GRACE",      step=0.02, min=0,    max=1.0,   fmt="%.2f", get=function() return C.TARGET_GRACE_TIME end, set=function(v) C.TARGET_GRACE_TIME=v end},
+  {label="STICKY_FOV",        step=0.05, min=0,    max=2.0,   fmt="%.2f", get=function() return C.STICKY_OUT_OF_FOV_TIME end, set=function(v) C.STICKY_OUT_OF_FOV_TIME=v end},
+  {label="PRED_LEAD",         step=0.05, min=0,    max=2.0,   fmt="%.2f", get=function() return C.PRED_LEAD end, set=function(v) C.PRED_LEAD=v end},
+  {label="WB_MAX_THICK",      step=0.25, min=0,    max=8.0,   fmt="%.2f", get=function() return C.WB_MAX_THICK end, set=function(v) C.WB_MAX_THICK=v end},
+  {label="WB_MAX_PARTS",      step=1,    min=0,    max=8,     fmt="%.0f", get=function() return C.WB_MAX_PARTS end, set=function(v) C.WB_MAX_PARTS=v end},
+  {label="EDGE_THIN",         step=0.05, min=0.05, max=2.0,   fmt="%.2f", get=function() return C.EDGE_THIN end, set=function(v) C.EDGE_THIN=v end},
+  {label="MAX_THIN",          step=1,    min=0,    max=8,     fmt="%.0f", get=function() return C.MAX_THIN end, set=function(v) C.MAX_THIN=v end},
+  {label="VIS_RAY_BUDGET",    step=2,    min=4,    max=80,    fmt="%.0f", get=function() return C.VIS_RAY_BUDGET end, set=function(v) C.VIS_RAY_BUDGET=v end},
+  {label="FOV",               step=5,    min=10,   max=500,   fmt="%.0f", get=function() return C.FOV end, set=function(v) C.FOV=v end},
+}
+local function buildHUD()
+  local gui = Instance.new("ScreenGui")
+  gui.Name = "AA_HUD"
+  gui.ResetOnSpawn = false
+  gui.IgnoreGuiInset = true
+  gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+  gui.Parent = PlayerGui
+  local frame = Instance.new("Frame")
+  frame.Name = "Panel"
+  frame.AnchorPoint = Vector2.new(0, 0.5)
+  frame.Position = UDim2.new(0, 8, 0.5, 0)
+  frame.Size = UDim2.new(0, 300, 0, 180)
+  frame.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
+  frame.BackgroundTransparency = 0.30
+  frame.BorderSizePixel = 0
+  frame.Parent = gui
+  local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, 5); corner.Parent = frame
+  local stroke = Instance.new("UIStroke"); stroke.Color = Color3.fromRGB(80, 220, 140); stroke.Thickness = 1; stroke.Transparency = 0.35; stroke.Parent = frame
+  local titleBar = Instance.new("Frame")
+  titleBar.BackgroundTransparency = 1
+  titleBar.Size = UDim2.new(1, -8, 0, 14)
+  titleBar.Position = UDim2.new(0, 4, 0, 2)
+  titleBar.Parent = frame
+  local title = Instance.new("TextLabel")
+  title.BackgroundTransparency = 1
+  title.Size = UDim2.new(1, -18, 1, 0)
+  title.Position = UDim2.new(0, 2, 0, 0)
+  title.Font = Enum.Font.Code; title.TextSize = 9
+  title.TextXAlignment = Enum.TextXAlignment.Left
+  title.TextColor3 = Color3.fromRGB(120, 255, 180)
+  title.Text = "▎AA v3.3.0"
+  title.Parent = titleBar
+  local toggleBtn = Instance.new("TextButton")
+  toggleBtn.Size = UDim2.new(0, 14, 0, 12)
+  toggleBtn.Position = UDim2.new(1, -14, 0, 1)
+  toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+  toggleBtn.BorderSizePixel = 0
+  toggleBtn.Font = Enum.Font.Code; toggleBtn.TextSize = 10
+  toggleBtn.TextColor3 = Color3.fromRGB(150, 200, 255)
+  toggleBtn.Text = "▼"
+  toggleBtn.AutoButtonColor = true
+  toggleBtn.Parent = titleBar
+  local tbc = Instance.new("UICorner"); tbc.CornerRadius = UDim.new(0, 3); tbc.Parent = toggleBtn
+  local label = Instance.new("TextLabel")
+  label.Name = "Text"
+  label.BackgroundTransparency = 1
+  label.Size = UDim2.new(1, -10, 1, -18)
+  label.Position = UDim2.new(0, 6, 0, 18)
+  label.Font = Enum.Font.Code; label.TextSize = 10
+  label.TextXAlignment = Enum.TextXAlignment.Left
+  label.TextYAlignment = Enum.TextYAlignment.Top
+  label.TextColor3 = Color3.fromRGB(220, 255, 230)
+  label.Text = ""
+  label.Parent = frame
+  local editor = Instance.new("Frame")
+  editor.Name = "Editor"
+  editor.AnchorPoint = Vector2.new(0, 0.5)
+  editor.Position = UDim2.new(0, 316, 0.5, 0)
+  editor.Size = UDim2.new(0, 230, 0, 600)
+  editor.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
+  editor.BackgroundTransparency = 0.30
+  editor.BorderSizePixel = 0
+  editor.Parent = gui
+  local corner2 = Instance.new("UICorner"); corner2.CornerRadius = UDim.new(0, 5); corner2.Parent = editor
+  local stroke2 = Instance.new("UIStroke"); stroke2.Color = Color3.fromRGB(150, 180, 255); stroke2.Thickness = 1; stroke2.Transparency = 0.35; stroke2.Parent = editor
+  local etitle = Instance.new("TextLabel")
+  etitle.BackgroundTransparency = 1
+  etitle.Size = UDim2.new(1, -10, 0, 11)
+  etitle.Position = UDim2.new(0, 6, 0, 2)
+  etitle.Font = Enum.Font.Code; etitle.TextSize = 9
+  etitle.TextXAlignment = Enum.TextXAlignment.Left
+  etitle.TextColor3 = Color3.fromRGB(150, 200, 255)
+  etitle.Text = "▎TUNE"
+  etitle.Parent = editor
+  local scroll = Instance.new("ScrollingFrame")
+  scroll.BackgroundTransparency = 1
+  scroll.BorderSizePixel = 0
+  scroll.Position = UDim2.new(0, 2, 0, 14)
+  scroll.Size = UDim2.new(1, -4, 1, -18)
+  scroll.CanvasSize = UDim2.new(0, 0, 0, #EDIT_VARS * 19 + 4)
+  scroll.ScrollBarThickness = 3
+  scroll.Parent = editor
+  local valLabels = {}
+  for i, v in ipairs(EDIT_VARS) do
+    local row = Instance.new("Frame")
+    row.BackgroundTransparency = 1
+    row.Position = UDim2.new(0, 0, 0, (i - 1) * 19)
+    row.Size = UDim2.new(1, 0, 0, 17)
+    row.Parent = scroll
+    local nameL = Instance.new("TextLabel")
+    nameL.BackgroundTransparency = 1
+    nameL.Position = UDim2.new(0, 2, 0, 0)
+    nameL.Size = UDim2.new(0, 100, 1, 0)
+    nameL.Font = Enum.Font.Code; nameL.TextSize = 8
+    nameL.TextXAlignment = Enum.TextXAlignment.Left
+    nameL.TextColor3 = Color3.fromRGB(200, 210, 230)
+    nameL.Text = v.label
+    nameL.Parent = row
+    local minus = Instance.new("TextButton")
+    minus.Size = UDim2.new(0, 16, 0, 14)
+    minus.Position = UDim2.new(0, 104, 0, 1)
+    minus.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    minus.BorderSizePixel = 0
+    minus.Font = Enum.Font.Code; minus.TextSize = 10
+    minus.TextColor3 = Color3.fromRGB(255, 160, 160)
+    minus.Text = "−"
+    minus.AutoButtonColor = true
+    minus.Parent = row
+    local mc = Instance.new("UICorner"); mc.CornerRadius = UDim.new(0, 3); mc.Parent = minus
+    local valL = Instance.new("TextLabel")
+    valL.BackgroundTransparency = 1
+    valL.Position = UDim2.new(0, 122, 0, 0)
+    valL.Size = UDim2.new(0, 50, 1, 0)
+    valL.Font = Enum.Font.Code; valL.TextSize = 8
+    valL.TextColor3 = Color3.fromRGB(240, 255, 200)
+    valL.Text = string.format(v.fmt, v.get())
+    valL.Parent = row
+    local plus = Instance.new("TextButton")
+    plus.Size = UDim2.new(0, 16, 0, 14)
+    plus.Position = UDim2.new(0, 176, 0, 1)
+    plus.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    plus.BorderSizePixel = 0
+    plus.Font = Enum.Font.Code; plus.TextSize = 10
+    plus.TextColor3 = Color3.fromRGB(160, 255, 160)
+    plus.Text = "+"
+    plus.AutoButtonColor = true
+    plus.Parent = row
+    local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(0, 3); pc.Parent = plus
+    valLabels[i] = {label = valL, var = v}
+    minus.MouseButton1Click:Connect(function()
+      local nv = v.get() - v.step
+      if nv < v.min then nv = v.min end
+      v.set(nv)
+      valL.Text = string.format(v.fmt, v.get())
+    end)
+    plus.MouseButton1Click:Connect(function()
+      local nv = v.get() + v.step
+      if nv > v.max then nv = v.max end
+      v.set(nv)
+      valL.Text = string.format(v.fmt, v.get())
+    end)
+  end
+  toggleBtn.MouseButton1Click:Connect(function()
+    st.editorVisible = not st.editorVisible
+    editor.Visible = st.editorVisible
+    toggleBtn.Text = st.editorVisible and "▼" or "▶"
+  end)
+  return gui, label, stroke, valLabels
+end
+local hudGui, hudLabel, hudStroke, hudVals = buildHUD()
+local hudState = { lastUpdate = 0 }
+local function buildHudMessages()
+  local msgs = {}
+  local mouseS = st.mouseSpeedSmooth or 0
+  local mouseR = st.mouseSpeedRaw or 0
+  local moving = mouseS > C.MANUAL_DEADZONE
+  if st.target and st.targetChar and st.targetChar.Parent then
+    local name = st.targetChar.Name
+    if #name > 12 then name = string.sub(name, 1, 12) end
+    local dist = math.floor(st.targetWorldD or 0)
+    local part = st.aimPointName or "?"
+    local vis = st.aimPointVisible and "" or (st.hiddenNow and " [FADE]" or " [BLOCKED]")
+    local fb = st.aimFallbackPos and " [ALT]" or ""
+    local tp = st.tpActive > 0.05 and string.format(" [TP%.0f%%]", st.tpActive * 100) or ""
+    local yk = st.userYankTimer > 0 and " [YANK]" or ""
+    local um = st.userMoveInf > 0.10 and string.format(" [UM%d%%]", math.floor(st.userMoveInf * 100)) or ""
+    local it = st.intentFactor > 0.1 and string.format(" [INT%d%%]", math.floor(st.intentFactor * 100)) or ""
+    table.insert(msgs, string.format("◆ %s %dst →%s%s%s%s%s%s%s", name, dist, part, vis, fb, tp, yk, um, it))
+  elseif st.lostFade > 0.02 then
+    table.insert(msgs, string.format("◆ FADE  %.2f", st.lostFade))
+  else
+    table.insert(msgs, "◆ IDLE")
+  end
+  table.insert(msgs, string.format("GATE %s  MOUSE %s raw=%.0f sm=%.0f", st.gateOpen and "ON" or "OFF", moving and "MOV" or "STL", mouseR, mouseS))
+  table.insert(msgs, string.format("SRC user=%.0f aim=%.0f game=%.2frad/s lat=%d k=%s",
+    mouseR, st.srcAimSpeed or 0, st.srcGameRate or 0, Sep.lat or 1,
+    Sep.ky and string.format("%.5f", math.abs(Sep.ky)) or "?"))
+  local rd = st.reactDelayCurrent or 0.07
+  local reactPct = math.floor(clamp(st.lockAge / math.max(rd, 0.001), 0, 1) * 100)
+  table.insert(msgs, string.format("REACT %.0fms %d%% BLEND %d%%", rd * 1000, reactPct, math.floor((st.acquireBlend or 1) * 100)))
+  table.insert(msgs, string.format("ω=%.0f ζ=%.2f v=(%.0f,%.0f)",
+    st.springOmega or 0, st.zetaSmooth or 0, st.springVsX or 0, st.springVsY or 0))
+  local tvMag = st.lastTargetVelMag or 0
+  table.insert(msgs, string.format("tV=%.1f conf=%.2f  MODE=%s", tvMag, st.predConfidence or 1.0, C.AIM_POINT_MODE))
+  return msgs
+end
+local function resetHoldState()
+  st.visReset = true
+  Vis.cache = setmetatable({}, {__mode = "k"})
+  st.lockAge = 0
+  st.acquireEnvT = 0
+  st.reactDelayRolled = false
+  st.aimScreenInit = false
+  st.aimScreenX = 0
+  st.aimScreenY = 0
+  st.returnPauseTimer = 0
+  st.returnPulseTimer = 0
+  st.returnPulseMag = 0
+  st.recentHitTime = nil
+  st.yankDetected = false
+  st.yankTimer = 0
+  st.lastTargetScreenInit = false
+  st.smartFlickActive = false
+  st.smartFlickTimer = 0
+  st.smartFlickHoldTimer = 0
+  st.smlScreenVelInit = false
+  st.flickTimer = 0
+  st.flickPhaseSeed = rnd() * 100
+  st.userYankTimer = 0
+  st.prevUserDirInit = false
+  st.userMoveInf = 0
+  st.aimPointVisible = true
+  st.aimPointNotVisibleSince = 0
+  st.aimDynamicY = nil
+  st.aimSmoothLocal = nil
+  st.aimFallbackPos = nil
+  st.lostCoastTimer = 0
+end
+local function beginHold()
+  if st.holding then return end
+  st.holding = true
+  resetHoldState()
+end
+local function endHold()
+  st.holding = false
+  st.target, st.targetChar = nil, nil
+  st.aimScreenInit = false
+  st.returnPauseTimer = 0
+  st.returnPulseTimer = 0
+  st.recentHitTime = nil
+  st.yankDetected = false
+  st.lastTargetScreenInit = false
+  st.smartFlickActive = false
+  st.smartFlickTimer = 0
+  st.smartFlickHoldTimer = 0
+  st.smlScreenVelInit = false
+  st.flickTimer = 0
+  st.userMoveInf = 0
+  st.aimDynamicY = nil
+  st.aimSmoothLocal = nil
+  st.aimFallbackPos = nil
+end
 local connB = UserInputService.InputBegan:Connect(function(i, gp)
+  if MY.dead then return end
   if i.KeyCode == C.TOGGLE and not st.toggleCooldown then
-    st.toggleCooldown = true
-    st.on = not st.on
+    st.toggleCooldown = true; st.on = not st.on
     if not st.on then
       st.m1, st.m2, st.holding = false, false, false
       st.target, st.targetChar = nil, nil
@@ -2952,269 +3279,101 @@ local connB = UserInputService.InputBegan:Connect(function(i, gp)
   if gp then return end
   if i.UserInputType == Enum.UserInputType.MouseButton2 and C.CLICK_R then
     st.m2 = true
-    if not st.holding then
-      st.holding = true
-      st.visCache = {}
-      st.lockAge = 0
-      st.acquireEnvT = 0
-      st.reactDelayRolled = false
-      st.aimScreenInit = false
-      st.aimScreenX = 0; st.aimScreenY = 0
-      st.returnPauseTimer = 0
-      st.returnPulseTimer = 0
-      st.returnPulseMag = 0
-      st.recentHitTime = nil
-      st.yankDetected = false
-      st.yankTimer = 0
-      st.lastTargetScreenInit = false
-      st.smartFlickActive = false
-      st.smartFlickTimer = 0
-      st.smartFlickHoldTimer = 0
-      st.smlScreenVelInit = false
-      st.flickTimer = 0
-      st.flickPhaseSeed = math.random() * 100
-      st.userYankTimer = 0
-      st.prevUserDirInit = false
-      st.userMoveInf = 0
-      st.userPriority = 0
-      st.aimPointVisible = true
-      st.aimPointNotVisibleSince = 0
-      st.aimDynamicY = nil
-      st.lostCoastTimer = 0
-      st.prevErrorMag = nil
-      st.overshootTimer = 0
-      st.smoothErrorX = 0; st.smoothErrorY = 0
-      st.escapeIntent = 0
-      st.escapeHoldTimer = 0
-    end
+    beginHold()
   end
   if i.UserInputType == Enum.UserInputType.MouseButton1 and C.CLICK_L then
     st.m1 = true
-    if not st.holding then
-      st.holding = true
-      st.visCache = {}
-      st.lockAge = 0
-      st.acquireEnvT = 0
-      st.reactDelayRolled = false
-      st.aimScreenInit = false
-      st.aimScreenX = 0; st.aimScreenY = 0
-      st.returnPauseTimer = 0
-      st.returnPulseTimer = 0
-      st.returnPulseMag = 0
-      st.recentHitTime = nil
-      st.yankDetected = false
-      st.yankTimer = 0
-      st.lastTargetScreenInit = false
-      st.smartFlickActive = false
-      st.smartFlickTimer = 0
-      st.smartFlickHoldTimer = 0
-      st.smlScreenVelInit = false
-      st.flickTimer = 0
-      st.flickPhaseSeed = math.random() * 100
-      st.userYankTimer = 0
-      st.prevUserDirInit = false
-      st.userMoveInf = 0
-      st.userPriority = 0
-      st.aimPointVisible = true
-      st.aimPointNotVisibleSince = 0
-      st.aimDynamicY = nil
-      st.lostCoastTimer = 0
-      st.prevErrorMag = nil
-      st.overshootTimer = 0
-      st.smoothErrorX = 0; st.smoothErrorY = 0
-      st.escapeIntent = 0
-      st.escapeHoldTimer = 0
-    end
+    beginHold()
   end
 end)
-
 local connE = UserInputService.InputEnded:Connect(function(i)
+  if MY.dead then return end
   if i.KeyCode == C.TOGGLE then st.toggleCooldown = false end
   if i.UserInputType == Enum.UserInputType.MouseButton2 then
     st.m2 = false
-    if not C.AUTO and not st.m1 then
-      st.holding = false
-      st.target, st.targetChar = nil, nil
-      st.aimScreenInit = false
-      st.returnPauseTimer = 0
-      st.returnPulseTimer = 0
-      st.recentHitTime = nil
-      st.yankDetected = false
-      st.lastTargetScreenInit = false
-      st.smartFlickActive = false
-      st.smartFlickTimer = 0
-      st.smartFlickHoldTimer = 0
-      st.smlScreenVelInit = false
-      st.flickTimer = 0
-      st.userMoveInf = 0
-      st.userPriority = 0
-      st.aimDynamicY = nil
-      st.prevErrorMag = nil
-      st.overshootTimer = 0
-      st.smoothErrorX = 0; st.smoothErrorY = 0
-      st.escapeIntent = 0
-      st.escapeHoldTimer = 0
-    end
+    if not C.AUTO and not st.m1 then endHold() end
   end
   if i.UserInputType == Enum.UserInputType.MouseButton1 then
     st.m1 = false
-    if not C.AUTO and not st.m2 then
-      st.holding = false
-      st.target, st.targetChar = nil, nil
-      st.aimScreenInit = false
-      st.returnPauseTimer = 0
-      st.returnPulseTimer = 0
-      st.recentHitTime = nil
-      st.yankDetected = false
-      st.lastTargetScreenInit = false
-      st.smartFlickActive = false
-      st.smartFlickTimer = 0
-      st.smartFlickHoldTimer = 0
-      st.smlScreenVelInit = false
-      st.flickTimer = 0
-      st.userMoveInf = 0
-      st.userPriority = 0
-      st.aimDynamicY = nil
-      st.prevErrorMag = nil
-      st.overshootTimer = 0
-      st.smoothErrorX = 0; st.smoothErrorY = 0
-      st.escapeIntent = 0
-      st.escapeHoldTimer = 0
-    end
+    if not C.AUTO and not st.m2 then endHold() end
   end
 end)
-
-local connR = RunService.RenderStepped:Connect(function(dt)
+local function coastBlocked(dt)
+  st.lostTimer = 0
+  st.hiddenNow = true
+  st.hideT = st.hideT + dt
+  if st.lastVisWorld ~= nil and st.hideT <= C.HIDE_KEEP_TIME then
+    local w = math.exp(-st.hideT / C.HIDE_FADE_TAU)
+    local ex = math.min(st.hideT, C.HIDE_EXTRAP_MAX) * 0.8
+    local wp = st.lastVisWorld + Vector3.new(st.lastVisVelX, 0, st.lastVisVelZ) * ex
+    local sp = camera:WorldToViewportPoint(wp)
+    if sp.Z > 0 then
+      st.aimWorldLast = wp
+      local fx, fy = solveMovement(getCursor(), sp.X, sp.Y, dt, nil)
+      sendMouseRelative(fx * w, fy * w)
+      return
+    end
+  end
+  local decay = math.exp(-dt / C.LOST_DECAY_TAU)
+  st.outX, st.outY = st.outX * decay, st.outY * decay
+  st.springVX = st.springVX * decay; st.springVY = st.springVY * decay
+  st.springVsX = st.springVsX * decay; st.springVsY = st.springVsY * decay
+  local fx, fy = st.springVsX * dt, st.springVsY * dt
+  local m = vlen(fx, fy)
+  if m > C.RELEASE_MAX_PIXELS then
+    local s = C.RELEASE_MAX_PIXELS / m
+    fx, fy = fx * s, fy * s
+  end
+  if math.abs(fx) > 0.001 or math.abs(fy) > 0.001 then sendMouseRelative(fx, fy) end
+  if st.hideT > C.HIDE_KEEP_TIME + 0.25 then dropTarget() end
+end
+local function step(dt)
+  if MY.dead then return end
   camera = workspace.CurrentCamera or camera
   if not camera then return end
-
-  updateRecoilAlways(dt)
-
+  Src.update(dt)
   if not st.on or not player.Character then return end
-
-  local rawDelta = UserInputService:GetMouseDelta()
-  local rawX, rawY = rawDelta.X, rawDelta.Y
-  local sentX = st.sentAccumX
-  local sentY = st.sentAccumY
-  local sentMag = st.lastBatchMag
-
-  local userDX = rawX - sentX
-  local userDY = rawY - sentY
-
-  local thr = C.MOUSE_MIN_MAG
-  if sentMag > 8 then
-    local adaptive = sentMag * C.MOUSE_ADAPT_THR_MULT
-    if adaptive > thr then thr = adaptive end
-  end
-  if thr > C.MOUSE_ADAPT_THR_MAX then thr = C.MOUSE_ADAPT_THR_MAX end
-
-  if math.abs(userDX) < thr then userDX = 0 end
-  if math.abs(userDY) < thr then userDY = 0 end
-
-  local mag = math.sqrt(userDX * userDX + userDY * userDY)
-  if mag < C.MOUSE_MIN_MAG then
-    userDX = 0; userDY = 0
-  elseif mag > C.MOUSE_MAX_MAG then
-    local s = C.MOUSE_MAX_MAG / mag
-    userDX = userDX * s
-    userDY = userDY * s
-  end
-
-  st.mouseDeltaX = math.floor(userDX + 0.5)
-  st.mouseDeltaY = math.floor(userDY + 0.5)
-  st.mouseDX = st.mouseDeltaX
-  st.mouseDY = st.mouseDeltaY
-
-  local dtSafe = math.max(dt, C.MOUSE_DT_MIN)
-  local rawSpeed = math.sqrt(userDX * userDX + userDY * userDY) / dtSafe
-  if rawSpeed > C.MOUSE_SPEED_CAP then rawSpeed = C.MOUSE_SPEED_CAP end
-  st.mouseSpeedRaw = rawSpeed
-  st.mouseSpeedSmooth = expDecay(st.mouseSpeedSmooth, rawSpeed, C.MOUSE_SMOOTH_TAU, dt)
-
-  st.lastSentX = sentX
-  st.lastSentY = sentY
-
-  if st.recoilCompX ~= 0 or st.recoilCompY ~= 0 then
-    sendMouseRelative(st.recoilCompX, st.recoilCompY)
-  end
-
-  st.sentAccumX = 0
-  st.sentAccumY = 0
-  st.lastBatchMag = 0
-
+  Vis.beginFrame()
   updateUserMove(dt)
   if st.holding then updateUserYank(dt) end
-
-  if not st.holding then
-    st.manualInf = 0
-    st.manualDownInf = 0
-    st.manualHoldTimer = 0
-    st.cutSmooth = 0
-    st.releaseSmooth = 0
-    st.springVX = st.springVX * 0.6
-    st.springVY = st.springVY * 0.6
-    st.springVsX = st.springVsX * 0.6
-    st.springVsY = st.springVsY * 0.6
-    st.springVsInit = false
-    st.predVelInit = false
-    st.predBlend = 1.0
-    st.predConfidence = 1.0
-    st.aimSmoothWorld = nil
-    st.acquireEnvT = 0
-    st.acquireBlend = 1
-    st.dirChangePending = false
-    st.flickTimer = 0
-    st.pulseTimer = 0
-    st.reactDelayRolled = false
-    st.tpActive = expDecay(st.tpActive, 0, C.TP_TAU, dt)
-    st.microPauseHold = 0
-    st.microPauseScale = 1.0
-    st.returnPauseTimer = 0
-    st.returnPulseTimer = 0
-    st.recentHitTime = nil
-    st.yankDetected = false
-    st.lastTargetScreenInit = false
-    st.smartFlickActive = false
-    st.smartFlickTimer = 0
-    st.smartFlickHoldTimer = 0
-    st.smlScreenVelInit = false
-    st.userYankTimer = 0
-    st.userPriority = 0
-    st.aimPointVisible = true
-    st.aimPointNotVisibleSince = 0
-    st.aimDynamicY = nil
-    st.lostCoastTimer = 0
-    st.prevErrorMag = nil
-    st.overshootTimer = 0
-    st.anticipateX = 0
-    st.anticipateY = 0
-    st.smoothErrorX = 0
-    st.smoothErrorY = 0
-    st.escapeIntent = 0
-    st.escapeHoldTimer = 0
+  if MY.notis == false then
+    hudGui.Enabled = false
+  else
+    hudGui.Enabled = true
+    hudState.lastUpdate = hudState.lastUpdate + dt
+    if hudState.lastUpdate > 0.05 then
+      hudState.lastUpdate = 0
+      hudLabel.Text = table.concat(buildHudMessages(), "\n")
+      if st.target and st.targetChar and st.targetChar.Parent and st.aimPointVisible then
+        hudStroke.Color = Color3.fromRGB(80, 255, 140)
+      elseif st.target and not st.aimPointVisible then
+        hudStroke.Color = Color3.fromRGB(255, 120, 120)
+      elseif st.lostFade > 0.02 then
+        hudStroke.Color = Color3.fromRGB(255, 200, 60)
+      else
+        hudStroke.Color = Color3.fromRGB(120, 140, 180)
+      end
+      for _, e in ipairs(hudVals) do
+        e.label.Text = string.format(e.var.fmt, e.var.get())
+      end
+    end
+  end
+  if C.AUTO and not st.holding then beginHold() end
+  st.gateOpen = aimGateOpen()
+  if not st.holding or not st.gateOpen then
+    releaseAll(dt)
     return
   end
-
-  if not isMouseAtCenter() then return end
-
   local cursor = getCursor()
-
   updateYankDetection(dt)
   updateStickyTimers(dt)
   selectTarget(cursor, dt)
-
   if not st.target or not st.targetChar or not st.targetChar.Parent then
-    if st.lostFade > 0 then
-      st.lostFade = expDecay(st.lostFade, 0, C.TAU_LOST, dt)
-    end
-    handleLostTarget(dt)
-    return
+    if st.lostFade > 0 then st.lostFade = expDecay(st.lostFade, 0, C.TAU_LOST, dt) end
+    handleLostTarget(dt); return
   end
   local targetRoot = st.targetChar:FindFirstChild("HumanoidRootPart")
-  if not targetRoot then
-    handleLostTarget(dt)
-    return
-  end
+  if not targetRoot then handleLostTarget(dt); return end
   pushHistory(targetRoot.Position)
   if C.TP_DETECT then
     local curPos = targetRoot.Position
@@ -3230,18 +3389,25 @@ local connR = RunService.RenderStepped:Connect(function(dt)
     st.tpActive = expDecay(st.tpActive, 0, C.TP_TAU, dt)
   end
   st.lockAge = st.lockAge + dt
-
   updateSmartFlickScreenVel(dt)
-
   local aimX, aimY, targetVel = computeAimScreen(st.targetChar, dt, cursor)
-  if not aimX then return end
+  if not aimX then coastBlocked(dt); return end
   local fx, fy = solveMovement(cursor, aimX, aimY, dt, targetVel)
   sendMouseRelative(fx, fy)
-end)
-
+end
 rerollAll()
-
-_G.AA = _G.AA or {}
-_G.AA.conns = {connR, connB, connE}
-_G.AA.user = USER
-_G.AA.notis = false
+local bound = pcall(function()
+  RunService:BindToRenderStep("AA_Main", Enum.RenderPriority.Last.Value, step)
+end)
+if bound then
+  MY.unbind = function() pcall(function() RunService:UnbindFromRenderStep("AA_Main") end) end
+else
+  table.insert(MY.conns, RunService.RenderStepped:Connect(step))
+end
+table.insert(MY.conns, connB)
+table.insert(MY.conns, connE)
+MY.user = USER
+MY.notis = false
+MY.hud = hudGui
+MY.C = C
+MY.st = st
